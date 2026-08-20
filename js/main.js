@@ -58,6 +58,12 @@ try {
   const playlistOverlayCloseEl = document.getElementById("playlist-overlay-close");
   const playlistEmbedWrapEl = document.getElementById("playlist-embed-wrap");
   const playlistOpenLinkEl = document.getElementById("playlist-open-link");
+  const exhibitOverlayEl = document.getElementById("exhibit-overlay");
+  const exhibitOverlayBackdropEl = document.getElementById("exhibit-overlay-backdrop");
+  const exhibitOverlayCloseEl = document.getElementById("exhibit-overlay-close");
+  const exhibitOverlayLabelEl = document.getElementById("exhibit-overlay-label");
+  const exhibitOverlayTitleEl = document.getElementById("exhibit-overlay-title");
+  const exhibitOverlayDescriptionEl = document.getElementById("exhibit-overlay-description");
 
   // ---- Milestone 3: data-driven room graph ----
   // One room is "live" (built into roomGroup) at a time. Walking into an
@@ -119,6 +125,7 @@ try {
   function clearRoomGroup() {
     roomGeneration++; // invalidate any in-flight async photo image loads
     playlistBoardRecord = null;
+    interestRecords = [];
     for (let i = roomGroup.children.length - 1; i >= 0; i--) {
       const child = roomGroup.children[i];
       roomGroup.remove(child);
@@ -194,6 +201,9 @@ try {
   // photoRecords: metadata for every wall-mounted photo frame in the
   // currently-built room, used for proximity prompts + the lightbox.
   let photoRecords = [];
+  // Room 4's tangible archive objects use the same proximity model as
+  // photos and doors, but their content remains entirely in config.js.
+  let interestRecords = [];
   let playlistBoardRecord = null;
   let currentRoomId = null;
   // bumped every time the room is rebuilt, so an async photo image that
@@ -737,6 +747,118 @@ try {
     );
   }
 
+  // ---- Room 4: physical-looking, configurable archive exhibits ----
+  function makeArchiveLabel(title, category, width = 1.35) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 700;
+    canvas.height = 260;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#160c27";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#d4a84b";
+    ctx.lineWidth = 10;
+    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#d4a84b";
+    ctx.font = "24px monospace";
+    ctx.fillText(category.toUpperCase(), canvas.width / 2, 58);
+    ctx.fillStyle = "#f4efe6";
+    ctx.font = "38px serif";
+    const words = String(title).split(" ");
+    const lines = [];
+    let line = "";
+    words.forEach((word) => {
+      const candidate = `${line} ${word}`.trim();
+      if (ctx.measureText(candidate).width > 600 && line) {
+        lines.push(line);
+        line = word;
+      } else line = candidate;
+    });
+    if (line) lines.push(line);
+    lines.slice(0, 2).forEach((text, index) => ctx.fillText(text, canvas.width / 2, 130 + index * 48));
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    material.userData.disposable = true;
+    return new THREE.Mesh(new THREE.PlaneGeometry(width, width * 0.37), material);
+  }
+
+  function addArchiveLabel(title, category, x, y, z, facing, width) {
+    const label = makeArchiveLabel(title, category, width);
+    label.position.set(x, y, z);
+    label.rotation.y = facing;
+    roomGroup.add(label);
+  }
+
+  function buildInterestGallery(roomCfg) {
+    const interests = Array.isArray(roomCfg.interests) ? roomCfg.interests : [];
+    const byType = interests.reduce((groups, item) => {
+      const type = item && item.type || "archive";
+      (groups[type] ||= []).push(item);
+      return groups;
+    }, {});
+    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.4, metalness: 0.65 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x4a2c4e, roughness: 0.78, metalness: 0.08 });
+    const paper = new THREE.MeshStandardMaterial({ color: 0xf4efe6, roughness: 0.8 });
+    const rose = new THREE.MeshStandardMaterial({ color: 0xff8fa3, roughness: 0.55 });
+    const leaf = new THREE.MeshStandardMaterial({ color: 0x617d54, roughness: 0.8 });
+    const gameBlue = new THREE.MeshStandardMaterial({ color: 0x537fa1, roughness: 0.5, metalness: 0.15 });
+
+    const register = (item, x, z) => interestRecords.push({ item, anchor: { x, z } });
+    const addMesh = (geometry, material, x, y, z, rotationY = 0) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = rotationY;
+      roomGroup.add(mesh);
+      return mesh;
+    };
+
+    // West wall: a real little bookshelf, with each configured book as a
+    // separately inspectable volume rather than a gallery tile.
+    (byType.book || []).forEach((item, index) => {
+      const z = -2.5 + index * 2.45;
+      addMesh(new THREE.BoxGeometry(0.42, 2.25, 1.55), wood, -5.18, 1.15, z);
+      addMesh(new THREE.BoxGeometry(0.08, 2.45, 1.73), brass, -5.42, 1.25, z);
+      addMesh(new THREE.BoxGeometry(0.18, 1.2, 0.95), index % 2 ? rose : paper, -4.92, 1.65, z);
+      addArchiveLabel(item.title, "Reading archive", -4.93, 0.78, z, Math.PI / 2, 1.05);
+      register(item, -4.7, z);
+    });
+
+    // North wall: two distinct game cabinets with small warm-lit screens.
+    (byType.game || []).forEach((item, index) => {
+      const x = index ? 2.65 : -2.65;
+      addMesh(new THREE.BoxGeometry(1.45, 1.18, 0.56), wood, x, 0.59, -5.32);
+      addMesh(new THREE.BoxGeometry(1.18, 0.72, 0.05), gameBlue, x, 1.13, -5.64);
+      addMesh(new THREE.BoxGeometry(1.55, 0.08, 0.66), brass, x, 0.06, -5.32);
+      addArchiveLabel(item.title, "Game cabinet", x, 1.78, -5.61, 0, 1.32);
+      register(item, x, -4.75);
+    });
+
+    // East wall: a character-display plinth for each configured One Piece entry.
+    (byType["one-piece"] || []).forEach((item, index) => {
+      const z = -2.5 + index * 2.45;
+      addMesh(new THREE.CylinderGeometry(0.54, 0.7, 0.72, 16), wood, 5.18, 0.36, z);
+      addMesh(new THREE.CylinderGeometry(0.38, 0.38, 0.78, 12), index === 1 ? paper : brass, 5.18, 1.1, z);
+      addMesh(new THREE.SphereGeometry(0.3, 14, 10), index === 2 ? leaf : rose, 5.18, 1.68, z);
+      addArchiveLabel(item.title, "One Piece display", 4.88, 0.55, z, -Math.PI / 2, 1.08);
+      register(item, 4.7, z);
+    });
+
+    // Centre: low flower pedestals leave generous clear routes to every door.
+    (byType.flower || []).forEach((item, index) => {
+      const x = index ? 2.15 : 0.75;
+      const z = 1.65;
+      addMesh(new THREE.CylinderGeometry(0.35, 0.52, 0.92, 16), wood, x, 0.46, z);
+      addMesh(new THREE.CylinderGeometry(0.18, 0.24, 0.52, 12), brass, x, 1.1, z);
+      for (let petal = 0; petal < 6; petal++) {
+        const angle = (petal / 6) * Math.PI * 2;
+        addMesh(new THREE.SphereGeometry(0.17, 10, 8), item.title.toLowerCase().includes("lil") ? paper : rose,
+          x + Math.cos(angle) * 0.2, 1.48, z + Math.sin(angle) * 0.2);
+      }
+      addArchiveLabel(item.title, "Flower study", x, 0.64, z - 0.56, 0, 0.98);
+      register(item, x, z - 0.42);
+    });
+  }
+
   // ---- Milestone 5: Room 4's separate, lazy playlist-board exhibit ----
   function buildPlaylistBoard(roomCfg) {
     const canvas = document.createElement("canvas");
@@ -782,12 +904,24 @@ try {
     const id = playlistIdFromUrl(url);
     playlistEmbedWrapEl.replaceChildren();
     playlistOpenLinkEl.classList.add("hidden");
+    const showPlaylistFallback = () => {
+      playlistEmbedWrapEl.replaceChildren();
+      const fallback = document.createElement("p");
+      fallback.className = "playlist-fallback";
+      fallback.textContent = "Cherry's playlist cannot be shown here right now. You can open it directly instead.";
+      playlistEmbedWrapEl.appendChild(fallback);
+      if (/^https?:/i.test(url)) {
+        playlistOpenLinkEl.href = url;
+        playlistOpenLinkEl.classList.remove("hidden");
+      }
+    };
     if (id) {
       const iframe = document.createElement("iframe");
       iframe.title = "Cherry's YouTube playlist";
       iframe.loading = "lazy";
       iframe.allow = "autoplay; encrypted-media; picture-in-picture";
       iframe.src = `https://www.youtube.com/embed/videoseries?list=${encodeURIComponent(id)}`;
+      iframe.addEventListener("error", showPlaylistFallback, { once: true });
       playlistEmbedWrapEl.appendChild(iframe);
       playlistOpenLinkEl.href = url;
       playlistOpenLinkEl.classList.remove("hidden");
@@ -808,6 +942,23 @@ try {
 
   playlistOverlayCloseEl.addEventListener("click", closePlaylistBoard);
   playlistOverlayBackdropEl.addEventListener("click", closePlaylistBoard);
+
+  function openArchiveExhibit(record) {
+    if (!record || isAnyOverlayOpen()) return;
+    const item = record.item || {};
+    exhibitOverlayLabelEl.textContent = `${item.type || "archive"} exhibit`;
+    exhibitOverlayTitleEl.textContent = item.title || "Archive exhibit";
+    exhibitOverlayDescriptionEl.textContent = item.description || "A curated exhibit in Cherry's archive.";
+    exhibitOverlayEl.classList.remove("hidden");
+    keys.forward = keys.backward = keys.left = keys.right = false;
+  }
+
+  function closeArchiveExhibit() {
+    exhibitOverlayEl.classList.add("hidden");
+  }
+
+  exhibitOverlayCloseEl.addEventListener("click", closeArchiveExhibit);
+  exhibitOverlayBackdropEl.addEventListener("click", closeArchiveExhibit);
 
   function buildRoomShell(roomId) {
     clearRoomGroup();
@@ -861,7 +1012,10 @@ try {
       photoRecords = records;
     });
 
-    if (roomId === "room4") buildPlaylistBoard(roomCfg);
+    if (roomId === "room4") {
+      buildInterestGallery(roomCfg);
+      buildPlaylistBoard(roomCfg);
+    }
 
     if (roomIndicatorEl) {
       roomIndicatorEl.textContent = `Exhibit ${roomCfg.exhibitNo} — ${roomCfg.title}`;
@@ -877,6 +1031,7 @@ try {
   let activeDoorRecord = null; // door currently shown in the question overlay
   let nearDoor = null;         // door currently in proximity range (for prompt + interact)
   let nearPhoto = null;        // photo frame currently in proximity range
+  let nearInterest = null;
   let nearPlaylistBoard = null;
 
   function isDoorOverlayOpen() {
@@ -891,8 +1046,12 @@ try {
     return !playlistOverlayEl.classList.contains("hidden");
   }
 
+  function isExhibitOverlayOpen() {
+    return !exhibitOverlayEl.classList.contains("hidden");
+  }
+
   function isAnyOverlayOpen() {
-    return isDoorOverlayOpen() || isPhotoOverlayOpen() || isPlaylistOverlayOpen();
+    return isDoorOverlayOpen() || isPhotoOverlayOpen() || isPlaylistOverlayOpen() || isExhibitOverlayOpen();
   }
 
   function findDoorAtWall(wallId, tangentCoord) {
@@ -1026,6 +1185,7 @@ try {
     if (e.key === "Escape" && isDoorOverlayOpen()) closeDoorOverlay();
     else if (e.key === "Escape" && isPhotoOverlayOpen()) closePhotoLightbox();
     else if (e.key === "Escape" && isPlaylistOverlayOpen()) closePlaylistBoard();
+    else if (e.key === "Escape" && isExhibitOverlayOpen()) closeArchiveExhibit();
   });
 
   function attemptOpenLockedDoor(record) {
@@ -1042,6 +1202,7 @@ try {
       doorPromptEl.classList.remove("visible");
       nearDoor = null;
       nearPhoto = null;
+      nearInterest = null;
       nearPlaylistBoard = null;
       return;
     }
@@ -1066,34 +1227,58 @@ try {
       }
     });
 
+    let closestInterest = null;
+    let closestInterestDist = PHOTO_INTERACT_DISTANCE;
+    interestRecords.forEach((r) => {
+      const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+      if (dist < closestInterestDist) {
+        closestInterestDist = dist;
+        closestInterest = r;
+      }
+    });
+
     const playlistDist = playlistBoardRecord
       ? Math.hypot(camera.position.x - playlistBoardRecord.anchor.x, camera.position.z - playlistBoardRecord.anchor.z)
       : Infinity;
 
-    // If both a door and a photo are in range, whichever is physically
-    // closer wins the single on-screen prompt.
-    if (closestDoor && (!closestPhoto || closestDoorDist <= closestPhotoDist)) {
+    // All nearby interactables compete by physical distance. This keeps a
+    // single clear prompt when a door and a Room 4 exhibit overlap.
+    const closestObjectDist = Math.min(closestPhoto ? closestPhotoDist : Infinity,
+      closestInterest ? closestInterestDist : Infinity, playlistDist);
+    if (closestDoor && closestDoorDist <= closestObjectDist) {
       nearDoor = closestDoor;
       nearPhoto = null;
+      nearInterest = null;
+      nearPlaylistBoard = null;
       doorPromptEl.textContent = nearDoor.locked
         ? `${nearDoor.label} — tap / press E to answer`
         : `${nearDoor.label} — walk through`;
       doorPromptEl.classList.add("visible");
-    } else if (closestPhoto && closestPhotoDist <= playlistDist) {
+    } else if (closestPhoto && closestPhotoDist <= Math.min(closestInterest ? closestInterestDist : Infinity, playlistDist)) {
       nearDoor = null;
       nearPhoto = closestPhoto;
+      nearInterest = null;
       nearPlaylistBoard = null;
       doorPromptEl.textContent = "Tap to view / press E to inspect";
+      doorPromptEl.classList.add("visible");
+    } else if (closestInterest && closestInterestDist <= playlistDist) {
+      nearDoor = null;
+      nearPhoto = null;
+      nearInterest = closestInterest;
+      nearPlaylistBoard = null;
+      doorPromptEl.textContent = "Tap to inspect / press E to inspect";
       doorPromptEl.classList.add("visible");
     } else if (playlistBoardRecord && playlistDist < INTERACT_DISTANCE) {
       nearDoor = null;
       nearPhoto = null;
+      nearInterest = null;
       nearPlaylistBoard = playlistBoardRecord;
       doorPromptEl.textContent = "Playlist exhibit — tap / press E to view";
       doorPromptEl.classList.add("visible");
     } else {
       nearDoor = null;
       nearPhoto = null;
+      nearInterest = null;
       nearPlaylistBoard = null;
       doorPromptEl.classList.remove("visible");
     }
@@ -1105,6 +1290,8 @@ try {
       attemptOpenLockedDoor(nearDoor);
     } else if (nearPhoto) {
       openPhotoLightbox(nearPhoto);
+    } else if (nearInterest) {
+      openArchiveExhibit(nearInterest);
     } else if (nearPlaylistBoard) {
       openPlaylistBoard(nearPlaylistBoard);
     }

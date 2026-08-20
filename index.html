@@ -111,6 +111,17 @@
     </div>
   </div>
 
+  <!-- ROOM 4 EXHIBIT CARD — shared by each configurable archive object. -->
+  <div id="exhibit-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="exhibit-overlay-title">
+    <div class="exhibit-overlay-backdrop" id="exhibit-overlay-backdrop"></div>
+    <div class="exhibit-overlay-card">
+      <button type="button" class="exhibit-overlay-close" id="exhibit-overlay-close" aria-label="Close">✕</button>
+      <div class="exhibit-overlay-label" id="exhibit-overlay-label">Archive exhibit</div>
+      <h2 id="exhibit-overlay-title"></h2>
+      <p id="exhibit-overlay-description"></p>
+    </div>
+  </div>
+
   <!-- ============================================================
      START-SCREEN / UI WIRING — plain script, no dependency on
      Three.js or any CDN import. This guarantees the Enter button

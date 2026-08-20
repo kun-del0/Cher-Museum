@@ -182,9 +182,16 @@ const CONFIG = {
       type: "interest-gallery",
       playlistUrl: "YOUTUBE_PLAYLIST_URL", // placeholder — add later
       interests: [
-        { type: "book", title: "PLACEHOLDER BOOK TITLE" },
-        { type: "game", title: "PLACEHOLDER GAME TITLE" },
-        { type: "flower", title: "PLACEHOLDER FLOWER" }
+        { type: "book", title: "Omniscient Reader's Viewpoint (ORV)", description: "A book exhibit in Cherry's archive." },
+        { type: "book", title: "Little Mushroom — An Zhe", description: "A book exhibit in Cherry's archive." },
+        { type: "book", title: "Heaven Official's Blessing", description: "A book exhibit in Cherry's archive." },
+        { type: "game", title: "DragonVale", description: "A game exhibit in Cherry's archive." },
+        { type: "game", title: "Travel Town", description: "A game exhibit in Cherry's archive." },
+        { type: "one-piece", title: "One Piece", description: "A One Piece exhibit in Cherry's archive." },
+        { type: "one-piece", title: "Sanji", description: "A One Piece character exhibit in Cherry's archive." },
+        { type: "one-piece", title: "Zoro", description: "A One Piece character exhibit in Cherry's archive." },
+        { type: "flower", title: "Roses", description: "A flower exhibit in Cherry's archive." },
+        { type: "flower", title: "Lilies", description: "A flower exhibit in Cherry's archive." }
       ],
       doors: [
         { target: "room2", label: "Back to Family Archive", question: { prompt: "SAMPLE QUESTION — what is the opposite of hot?", answers: ["cold"], hint: "Think ice, not fire." } },
