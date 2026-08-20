@@ -24,12 +24,15 @@ try {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   sceneRoot.appendChild(renderer.domElement);
 
-  // ---- warm gallery-at-night lighting (placeholder, room-agnostic) ----
-  const ambient = new THREE.AmbientLight(0x2a1f40, 0.9);
+  // ---- shared midnight-gallery light, supplemented by room spot pools ----
+  const ambient = new THREE.AmbientLight(0x3b2b56, 1.2);
   scene.add(ambient);
 
-  const spot = new THREE.SpotLight(0xffe4a8, 3.2, 12, Math.PI / 5, 0.5, 1.2);
-  spot.position.set(0, 4, 1);
+  const skyLight = new THREE.HemisphereLight(0x5b496f, 0x120a24, 0.55);
+  scene.add(skyLight);
+
+  const spot = new THREE.SpotLight(0xffe4a8, 3.8, 16, Math.PI / 4, 0.55, 1.25);
+  spot.position.set(0, 4.8, 1);
   spot.target.position.set(0, 0, 0);
   scene.add(spot);
   scene.add(spot.target);
@@ -82,12 +85,12 @@ try {
   // unlocked door — or pressing Interact near one — swaps the room.
   const ROOM_SIZE = 12;          // room is ROOM_SIZE x ROOM_SIZE
   const ROOM_HALF = ROOM_SIZE / 2;
-  const WALL_HEIGHT = 3.6;
+  const WALL_HEIGHT = 4.8;
   const WALL_THICKNESS = 0.3;
   const PLAYER_RADIUS = 0.4;
   const EYE_HEIGHT = 1.6;
   const DOOR_WIDTH = 1.6;   // gap left open in the wall for each door
-  const DOOR_HEIGHT = 2.6;
+  const DOOR_HEIGHT = 2.9;
   const DOOR_EDGE_MARGIN = 1.3; // keeps doors clear of the corners
 
   // ---- Milestone 4: wall-mounted photo frames ----
@@ -274,6 +277,31 @@ try {
         mesh.position.set(def.fixedValue, WALL_HEIGHT / 2, center);
       }
       roomGroup.add(mesh);
+
+      // Lightweight architectural overlay: a darker lower wall, recessed
+      // upper section, brass chair rail, baseboard, crown, and end stiles.
+      // Each piece follows the already door-safe wall segment above.
+      const frontOffset = WALL_THICKNESS / 2 + 0.025;
+      const addDetail = (detailLength, height, y, depth, material, tangentCenter = center) => {
+        let detail;
+        if (def.tangentAxis === "x") {
+          detail = new THREE.Mesh(new THREE.BoxGeometry(detailLength, height, depth), material);
+          detail.position.set(tangentCenter, y, def.fixedValue + def.normal.z * frontOffset);
+        } else {
+          detail = new THREE.Mesh(new THREE.BoxGeometry(depth, height, detailLength), material);
+          detail.position.set(def.fixedValue + def.normal.x * frontOffset, y, tangentCenter);
+        }
+        roomGroup.add(detail);
+      };
+      addDetail(length, 1.14, 0.57, 0.045, wainscotMat);
+      addDetail(length - 0.18, WALL_HEIGHT - 1.56, (WALL_HEIGHT + 1.34) / 2, 0.03, upperPanelMat);
+      addDetail(length + 0.04, 0.13, 0.1, 0.1, trimMat); // baseboard
+      addDetail(length + 0.03, 0.09, 1.18, 0.1, trimMat); // chair rail
+      addDetail(length + 0.06, 0.16, WALL_HEIGHT - 0.12, 0.13, trimMat); // crown
+      if (length > 0.5) {
+        addDetail(0.09, WALL_HEIGHT - 1.4, (WALL_HEIGHT + 1.22) / 2, 0.1, trimMat, a + 0.12);
+        addDetail(0.09, WALL_HEIGHT - 1.4, (WALL_HEIGHT + 1.22) / 2, 0.1, trimMat, b - 0.12);
+      }
     });
   }
 
@@ -287,6 +315,27 @@ try {
     });
     mat.userData.disposable = true;
     return mat;
+  }
+
+  function makeDoorLabelMesh(label, width = 1.25) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 620;
+    canvas.height = 150;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#160c27";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#d4a84b";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+    ctx.fillStyle = "#f4efe6";
+    ctx.font = "28px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(label || "Gallery door").slice(0, 34), canvas.width / 2, canvas.height / 2);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
+    material.userData.disposable = true;
+    return new THREE.Mesh(new THREE.PlaneGeometry(width, width * 0.242), material);
   }
 
   function applyDoorLockVisual(record) {
@@ -319,8 +368,47 @@ try {
         ? new THREE.BoxGeometry(DOOR_WIDTH - 0.18, DOOR_HEIGHT - 0.18, WALL_THICKNESS * 0.6)
         : new THREE.BoxGeometry(WALL_THICKNESS * 0.6, DOOR_HEIGHT - 0.18, DOOR_WIDTH - 0.18);
     const panelMesh = new THREE.Mesh(panelGeo, panelMat);
-    panelMesh.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+    panelMesh.position.set(
+      anchor.x + def.normal.x * 0.035,
+      DOOR_HEIGHT / 2,
+      anchor.z + def.normal.z * 0.035
+    );
     roomGroup.add(panelMesh);
+
+    // Close the tall wall opening above the actual door and add restrained
+    // brass joinery so every transition reads as a substantial museum door.
+    const transomHeight = WALL_HEIGHT - DOOR_HEIGHT;
+    if (transomHeight > 0.1) {
+      const transomGeo = def.tangentAxis === "x"
+        ? new THREE.BoxGeometry(DOOR_WIDTH, transomHeight, WALL_THICKNESS * 0.62)
+        : new THREE.BoxGeometry(WALL_THICKNESS * 0.62, transomHeight, DOOR_WIDTH);
+      const transom = new THREE.Mesh(transomGeo, upperPanelMat);
+      transom.position.set(anchor.x, DOOR_HEIGHT + transomHeight / 2, anchor.z);
+      roomGroup.add(transom);
+    }
+    const addDoorTrim = (along, y, alongSize, height) => {
+      const geometry = def.tangentAxis === "x"
+        ? new THREE.BoxGeometry(alongSize, height, 0.1)
+        : new THREE.BoxGeometry(0.1, height, alongSize);
+      const trim = new THREE.Mesh(geometry, trimMat);
+      trim.position.set(
+        anchor.x + (def.tangentAxis === "x" ? along : def.normal.x * 0.12),
+        y,
+        anchor.z + (def.tangentAxis === "x" ? def.normal.z * 0.12 : along)
+      );
+      roomGroup.add(trim);
+    };
+    addDoorTrim(-DOOR_WIDTH / 2 + 0.1, DOOR_HEIGHT / 2, 0.12, DOOR_HEIGHT + 0.2);
+    addDoorTrim(DOOR_WIDTH / 2 - 0.1, DOOR_HEIGHT / 2, 0.12, DOOR_HEIGHT + 0.2);
+    addDoorTrim(0, DOOR_HEIGHT - 0.1, DOOR_WIDTH, 0.12);
+    const doorLabel = makeDoorLabelMesh(door.label, Math.min(1.45, DOOR_WIDTH - 0.1));
+    doorLabel.position.set(
+      anchor.x + def.normal.x * (WALL_THICKNESS / 2 + 0.06),
+      DOOR_HEIGHT + 0.42,
+      anchor.z + def.normal.z * (WALL_THICKNESS / 2 + 0.06)
+    );
+    doorLabel.rotation.y = def.tangentAxis === "x" ? (wallId === "south" ? Math.PI : 0) : (wallId === "east" ? -Math.PI / 2 : Math.PI / 2);
+    roomGroup.add(doorLabel);
 
     const record = {
       wallId,
@@ -1174,6 +1262,34 @@ try {
   playlistOverlayCloseEl.addEventListener("click", closePlaylistBoard);
   playlistOverlayBackdropEl.addEventListener("click", closePlaylistBoard);
 
+  function addGalleryLightPools() {
+    const pools = [[-3.4, -2.8], [3.4, -2.8], [-3.4, 2.8], [3.4, 2.8]];
+    pools.forEach(([x, z]) => {
+      const light = new THREE.SpotLight(0xffd99a, 1.45, 9.5, Math.PI / 4.2, 0.72, 1.5);
+      light.position.set(x, WALL_HEIGHT - 0.35, z);
+      light.target.position.set(x * 0.74, 0, z * 0.74);
+      roomGroup.add(light);
+      roomGroup.add(light.target);
+    });
+  }
+
+  function buildDecorativeFinalEntrance() {
+    // Room 6's north wall is intentionally closed: this preserves the
+    // one-way graph while making the arrival side feel architecturally real.
+    const z = -ROOM_HALF + WALL_THICKNESS / 2 + 0.01;
+    const backing = new THREE.Mesh(new THREE.BoxGeometry(DOOR_WIDTH + 0.24, DOOR_HEIGHT + 0.24, 0.12), trimMat);
+    backing.position.set(0, (DOOR_HEIGHT + 0.24) / 2, z + 0.02);
+    roomGroup.add(backing);
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x4b2c47, roughness: 0.58, metalness: 0.12 });
+    panelMat.userData.disposable = true;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_WIDTH - 0.12, DOOR_HEIGHT - 0.12, 0.08), panelMat);
+    panel.position.set(0, DOOR_HEIGHT / 2, z + 0.09);
+    roomGroup.add(panel);
+    const label = makeDoorLabelMesh("Museum Entrance", 1.42);
+    label.position.set(0, DOOR_HEIGHT + 0.43, z + 0.1);
+    roomGroup.add(label);
+  }
+
   function openArchiveExhibit(record) {
     if (!record || isAnyOverlayOpen()) return;
     const item = record.item || {};
@@ -1302,6 +1418,7 @@ try {
     ceilingMesh.rotation.x = Math.PI / 2;
     ceilingMesh.position.y = WALL_HEIGHT;
     roomGroup.add(ceilingMesh);
+    addGalleryLightPools();
 
     const doors = roomCfg.doors || [];
     const doorsByWall = { north: [], east: [], south: [], west: [] };
@@ -1320,6 +1437,7 @@ try {
       });
     });
     doorRecords = newDoorRecords;
+    if (roomId === "room6") buildDecorativeFinalEntrance();
 
     // Photo frames are placed after doors so their wall-segment
     // placement can see (and avoid) the door gaps just built.
@@ -1522,6 +1640,21 @@ try {
     else if (e.key === "Escape" && isExhibitOverlayOpen()) closeArchiveExhibit();
     else if (e.key === "Escape" && isVideoOverlayOpen()) closeVideoViewer();
     else if (e.key === "Escape" && isWebsiteOverlayOpen()) closeWebsiteExhibit();
+  });
+  const wainscotMat = new THREE.MeshStandardMaterial({
+    color: 0x21132f,
+    roughness: 0.78,
+    metalness: 0.08,
+  });
+  const upperPanelMat = new THREE.MeshStandardMaterial({
+    color: 0x241638,
+    roughness: 0.9,
+    metalness: 0.03,
+  });
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: 0x9d7938,
+    roughness: 0.38,
+    metalness: 0.68,
   });
 
   function attemptOpenLockedDoor(record) {
