@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Museum of Memories — Cherry</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --wall: #1a0f2e;
+    --floor: #0d0a1f;
+    --glow: #ffe4a8;
+    --brass: #d4a84b;
+    --rose: #ff8fa3;
+    --ink: #f4efe6;
+
+    --font-display: 'Cormorant Garamond', serif;
+    --font-ui: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--floor);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---------- CANVAS / SCENE LAYER ---------- */
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+
+  #scene-root canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* small persistent engine-status label, styled like the exhibit mono labels */
+  #engine-status {
+    position: fixed;
+    left: 16px;
+    bottom: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--brass);
+    opacity: 0.75;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+
+  /* ---------- START SCREEN OVERLAY ---------- */
+
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 38%, rgba(255,228,168,0.14), transparent 60%),
+      linear-gradient(180deg, #150c26 0%, var(--wall) 55%, var(--floor) 100%);
+    transition: opacity 0.9s ease, visibility 0.9s ease;
+  }
+
+  #start-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #start-screen { transition: none; }
+  }
+
+  .start-card {
+    text-align: center;
+    padding: 40px 32px;
+    max-width: 480px;
+  }
+
+  .start-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 18px;
+  }
+
+  .start-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(2.4rem, 9vw, 4rem);
+    line-height: 1.05;
+    color: var(--ink);
+    margin: 0 0 6px 0;
+  }
+
+  .start-title em {
+    font-style: italic;
+    color: var(--glow);
+  }
+
+  .start-subtitle {
+    font-family: var(--font-ui);
+    font-weight: 400;
+    font-size: 15px;
+    color: rgba(244,239,230,0.7);
+    line-height: 1.6;
+    margin: 14px 0 34px 0;
+  }
+
+  .enter-btn {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1a0f2e;
+    background: var(--brass);
+    border: none;
+    border-radius: 999px;
+    padding: 15px 40px;
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(212,168,75,0.4), 0 8px 30px rgba(255,228,168,0.18);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+
+  .enter-btn:hover {
+    background: var(--glow);
+    box-shadow: 0 0 0 1px rgba(255,228,168,0.6), 0 10px 36px rgba(255,228,168,0.28);
+  }
+
+  .enter-btn:active {
+    transform: scale(0.97);
+  }
+
+  .enter-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter-btn { transition: none; }
+  }
+
+  /* ---------- CONTROLS HINT (desktop) ---------- */
+
+  #controls-hint {
+    position: fixed;
+    right: 16px;
+    bottom: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--brass);
+    opacity: 0.6;
+    pointer-events: none;
+    text-transform: uppercase;
+    text-align: right;
+  }
+
+  @media (pointer: coarse) {
+    #controls-hint { display: none; }
+  }
+
+  /* ---------- TOUCH CONTROLS (mobile) ---------- */
+
+  #touch-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+  }
+
+  @media (pointer: coarse) {
+    #touch-controls { display: block; }
+  }
+
+  #joystick-base {
+    position: absolute;
+    left: 20px;
+    bottom: 24px;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: rgba(26,15,46,0.55);
+    border: 1px solid rgba(212,168,75,0.35);
+    box-shadow: inset 0 0 18px rgba(255,228,168,0.08);
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  #joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    background: var(--brass);
+    box-shadow: 0 0 14px rgba(255,228,168,0.35);
+    will-change: transform;
+  }
+
+  #interact-btn {
+    position: absolute;
+    right: 26px;
+    bottom: 36px;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    border: 1px solid rgba(212,168,75,0.5);
+    background: rgba(26,15,46,0.55);
+    color: var(--brass);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  #interact-btn:active {
+    background: rgba(212,168,75,0.25);
+  }
+
+  #interact-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 2px;
+  }
+
+  /* ---------- ROOM INDICATOR (temporary debug label — the real
+     animated entry plaque comes in a later milestone) ---------- */
+
+  #room-indicator {
+    position: fixed;
+    left: 16px;
+    top: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--brass);
+    opacity: 0.85;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+
+  /* ---------- DOOR PROXIMITY PROMPT ---------- */
+
+  #door-prompt {
+    position: fixed;
+    left: 50%;
+    bottom: 118px;
+    transform: translateX(-50%);
+    z-index: 5;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(26,15,46,0.72);
+    border: 1px solid rgba(212,168,75,0.4);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.4;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+  }
+
+  #door-prompt.visible {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #door-prompt { transition: none; }
+  }
+
+  @media (pointer: coarse) {
+    #door-prompt { bottom: 128px; }
+  }
+
+  /* ---------- DOOR QUESTION OVERLAY ---------- */
+
+  #door-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(8,5,16,0.72);
+    backdrop-filter: blur(2px);
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+  }
+
+  #door-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #door-overlay { transition: none; }
+  }
+
+  .door-overlay-card {
+    width: 100%;
+    max-width: 420px;
+    background: linear-gradient(180deg, #201336 0%, var(--wall) 100%);
+    border: 1px solid rgba(212,168,75,0.4);
+    border-radius: 18px;
+    padding: 30px 28px 26px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .door-overlay-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 10px;
+  }
+
+  .door-overlay-prompt {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+  }
+
+  .door-overlay-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212,168,75,0.4);
+    background: rgba(13,10,31,0.6);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  .door-overlay-input:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 1px;
+  }
+
+  .door-overlay-feedback {
+    min-height: 20px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--rose);
+    margin: 0 0 6px 0;
+  }
+
+  .door-overlay-feedback.success {
+    color: var(--glow);
+  }
+
+  .door-overlay-hint {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: rgba(244,239,230,0.7);
+    margin: 0 0 14px 0;
+  }
+
+  .door-overlay-hint.hidden {
+    display: none;
+  }
+
+  .door-overlay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .door-overlay-btn {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 999px;
+    padding: 11px 22px;
+    cursor: pointer;
+  }
+
+  .door-overlay-btn.primary {
+    color: #1a0f2e;
+    background: var(--brass);
+  }
+
+  .door-overlay-btn.primary:hover {
+    background: var(--glow);
+  }
+
+  .door-overlay-btn.ghost {
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid rgba(244,239,230,0.3);
+  }
+
+  .door-overlay-btn.ghost:hover {
+    border-color: rgba(244,239,230,0.6);
+  }
+
+  .door-overlay-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 2px;
+  }
+
+  .door-overlay-btn.hidden {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     CONFIG — all personal / editable content lives here.
+     Replace placeholders (photos, videos, questions, URLs, etc.)
+     without touching the engine code below.
+     ============================================================ -->
+<script>
+  const CONFIG = {
+    herName: "Cherry",
+    museumTitle: "Museum of Memories",
+    startSubtitle: "A small private gallery, built just for you. Step inside whenever you're ready.",
+
+    rooms: {
+      room1: {
+        exhibitNo: "01",
+        title: "Cherry — Growing Up",
+        type: "photo-gallery",
+        photos: [
+          // { src: "photos/room1/placeholder.webp", year: "20XX", caption: "Placeholder caption", note: "Placeholder note." }
+        ],
+        doors: [
+          {
+            target: "room2",
+            label: "Family Archive",
+            question: {
+              prompt: "SAMPLE QUESTION — what is 2 + 2?",
+              answers: ["4", "four"],
+              hint: "It's a basic sum."
+            }
+          },
+          {
+            target: "room3",
+            label: "Friends Archive",
+            question: {
+              prompt: "SAMPLE QUESTION — what color is the sky on a clear day?",
+              answers: ["blue"],
+              hint: "Same color as the ocean, usually."
+            }
+          },
+          {
+            target: "room5",
+            label: "Our Videos",
+            question: {
+              prompt: "SAMPLE QUESTION — how many days are in a week?",
+              answers: ["7", "seven"],
+              hint: "One for each day from Monday to Sunday."
+            }
+          }
+        ]
+      },
+
+      room2: {
+        exhibitNo: "02",
+        title: "Cherry + Family",
+        type: "photo-gallery",
+        photos: [],
+        doors: [
+          { target: "room1", label: "Back to Growing Up", question: { prompt: "SAMPLE QUESTION — what is 2 + 2?", answers: ["4", "four"], hint: "It's a basic sum." } },
+          { target: "room4", label: "Cherry Archive", question: { prompt: "SAMPLE QUESTION — what is the opposite of hot?", answers: ["cold"], hint: "Think ice, not fire." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — what is the first letter of the alphabet?", answers: ["a"], hint: "It comes right before B." } }
+        ]
+      },
+
+      room3: {
+        exhibitNo: "03",
+        title: "Cherry + Friends",
+        type: "photo-gallery",
+        photos: [],
+        doors: [
+          { target: "room1", label: "Back to Growing Up", question: { prompt: "SAMPLE QUESTION — what color is the sky on a clear day?", answers: ["blue"], hint: "Same color as the ocean, usually." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — how many legs does a spider have?", answers: ["8", "eight"], hint: "It's not 6 — that's an insect." } }
+        ]
+      },
+
+      room4: {
+        exhibitNo: "04",
+        title: "The Cherry Archive",
+        type: "interest-gallery",
+        playlistUrl: "YOUTUBE_PLAYLIST_URL", // placeholder — add later
+        interests: [
+          { type: "book", title: "PLACEHOLDER BOOK TITLE" },
+          { type: "game", title: "PLACEHOLDER GAME TITLE" },
+          { type: "flower", title: "PLACEHOLDER FLOWER" }
+        ],
+        doors: [
+          { target: "room2", label: "Back to Family Archive", question: { prompt: "SAMPLE QUESTION — what is the opposite of hot?", answers: ["cold"], hint: "Think ice, not fire." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — what do bees make?", answers: ["honey"], hint: "It's sweet and golden." } }
+        ]
+      },
+
+      room5: {
+        exhibitNo: "05",
+        title: "Our Videos",
+        type: "video-gallery",
+        videos: [
+          // { src: "videos/placeholder.mp4", poster: "videos/placeholder-thumb.webp", title: "Placeholder video", note: "Placeholder caption." }
+        ],
+        doors: [
+          { target: "room1", label: "Growing Up", question: { prompt: "SAMPLE QUESTION — how many days are in a week?", answers: ["7", "seven"], hint: "One for each day from Monday to Sunday." } },
+          { target: "room2", label: "Family Archive", question: { prompt: "SAMPLE QUESTION — what is the first letter of the alphabet?", answers: ["a"], hint: "It comes right before B." } },
+          { target: "room3", label: "Friends Archive", question: { prompt: "SAMPLE QUESTION — how many legs does a spider have?", answers: ["8", "eight"], hint: "It's not 6 — that's an insect." } },
+          { target: "room4", label: "Cherry Archive", question: { prompt: "SAMPLE QUESTION — what do bees make?", answers: ["honey"], hint: "It's sweet and golden." } },
+          { target: "room6", label: "Final Room", question: { prompt: "SAMPLE QUESTION — type the word \"open\" to continue.", answers: ["open"], hint: "It's the same word as in the question." }, oneWay: true }
+        ]
+      },
+
+      room6: {
+        exhibitNo: "06",
+        title: "The Final Room",
+        type: "external-walls",
+        entryFacingWall: "wallOfVoices",
+        externalWalls: [
+          { id: "wallOfVoices", title: "Wall of Voices", url: "WALL_OF_VOICES_URL", primary: true, position: "opposite-entry" },
+          { id: "wall2", title: "Wall Exhibit 2", url: "EXTERNAL_URL_2" },
+          { id: "wall3", title: "Wall Exhibit 3", url: "EXTERNAL_URL_3" },
+          { id: "wall4", title: "Wall Exhibit 4", url: "EXTERNAL_URL_4" }
+        ]
+      }
+    },
+
+    finale: {
+      title: "For You",
+      message: "PLACEHOLDER FINALE MESSAGE — replace with the real closing message for Cherry."
+    }
+  };
+
+  // Expose for later milestones / debugging
+  window.MUSEUM_CONFIG = CONFIG;
+</script>
+
+<!-- ============================================================
+     START SCREEN
+     ============================================================ -->
+<div id="start-screen">
+  <div class="start-card">
+    <div class="start-eyebrow" id="exhibit-eyebrow">Private Gallery — By Invitation</div>
+    <h1 class="start-title" id="museum-title">Museum of <em>Memories</em></h1>
+    <p class="start-subtitle" id="start-subtitle"></p>
+    <button class="enter-btn" id="enter-btn">Enter</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCENE ROOT (Three.js canvas mounts here)
+     ============================================================ -->
+<div id="scene-root"></div>
+<div id="engine-status">Engine — Milestone 1: scene ready</div>
+<div id="controls-hint">WASD / Arrows — move<br />Click + drag — look</div>
+<div id="room-indicator"></div>
+<div id="door-prompt"></div>
+
+<!-- ============================================================
+     TOUCH CONTROLS — visible joystick + interact button on
+     touch devices (CSS-gated via @media (pointer: coarse)).
+     The interact button now opens a nearby door's question
+     overlay (Milestone 3) — it will also handle photos/objects
+     in a later milestone.
+     ============================================================ -->
+<div id="touch-controls" aria-hidden="true">
+  <div id="joystick-base">
+    <div id="joystick-knob"></div>
+  </div>
+  <button id="interact-btn" type="button" aria-label="Interact">•</button>
+</div>
+
+<!-- ============================================================
+     DOOR QUESTION OVERLAY — shown when the player walks into a
+     locked door or interacts with one nearby.
+     ============================================================ -->
+<div id="door-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="door-overlay-prompt">
+  <div class="door-overlay-card">
+    <div class="door-overlay-eyebrow" id="door-overlay-label">Locked Door</div>
+    <p class="door-overlay-prompt" id="door-overlay-prompt"></p>
+    <input type="text" id="door-overlay-input" class="door-overlay-input" autocomplete="off" placeholder="Your answer…" />
+    <p class="door-overlay-feedback" id="door-overlay-feedback" aria-live="polite"></p>
+    <p class="door-overlay-hint hidden" id="door-overlay-hint"></p>
+    <div class="door-overlay-actions">
+      <button type="button" class="door-overlay-btn primary" id="door-overlay-submit">Answer</button>
+      <button type="button" class="door-overlay-btn ghost hidden" id="door-overlay-skip">Skip for now</button>
+      <button type="button" class="door-overlay-btn ghost" id="door-overlay-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     START-SCREEN / UI WIRING — plain script, no dependency on
+     Three.js or any CDN import. This guarantees the Enter button
+     and Enter key always work even if the 3D engine below fails
+     to load for any reason (offline, blocked CDN, etc).
+     ============================================================ -->
+<script>
+  // ---- fill in personal text from CONFIG ----
+  document.getElementById("start-subtitle").textContent =
+    CONFIG.startSubtitle || `Happy birthday, ${CONFIG.herName}.`;
+
+  const startScreen = document.getElementById("start-screen");
+  const enterBtn = document.getElementById("enter-btn");
+  let entered = false;
+
+  function enterMuseum() {
+    if (entered) return;
+    entered = true;
+    startScreen.classList.add("hidden");
+    // Milestone hook: this is where optional room music will start
+    // (Milestone 9) once the user gesture has fired.
+  }
+
+  // mouse / touch click
+  enterBtn.addEventListener("click", enterMuseum);
+
+  // keyboard Enter — listens on the whole document, not just the
+  // button, so it works whether or not the button has focus yet
+  document.addEventListener("keydown", (e) => {
+    if (entered) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      enterMuseum();
+    }
+  });
+</script>
+
+<!-- ============================================================
+     ENGINE — Three.js scene bootstrap (Milestone 1 scope only:
+     empty walkable canvas, no room geometry / movement yet).
+     Isolated from the UI script above and wrapped in try/catch
+     so a scene failure can never disable the start screen.
+
+     Loaded as a classic (non-module) script from cdnjs, NOT via
+     ES-module import: dynamic `import()` of a remote module
+     requires the CDN response to satisfy strict CORS/module
+     MIME rules, and sandboxed preview environments (including
+     Claude's own preview iframe) can block that fetch even
+     though a plain <script src="..."> tag is allowed through.
+     A classic script has no such restriction and is the most
+     reliable option both for opening the file directly in
+     Chrome and for in-app preview.
+     ============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const statusEl = document.getElementById("engine-status");
+
+  try {
+    if (typeof THREE === "undefined") {
+      throw new Error("THREE failed to load from CDN (window.THREE is undefined)");
+    }
+
+    // ---- basic scene / camera / renderer ----
+    const sceneRoot = document.getElementById("scene-root");
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d0a1f); // midnight floor tone as void colour
+
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 1.6, 4); // roughly eye height, standing back a little
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    sceneRoot.appendChild(renderer.domElement);
+
+    // ---- warm gallery-at-night lighting (placeholder, room-agnostic) ----
+    const ambient = new THREE.AmbientLight(0x2a1f40, 0.9);
+    scene.add(ambient);
+
+    const spot = new THREE.SpotLight(0xffe4a8, 3.2, 12, Math.PI / 5, 0.5, 1.2);
+    spot.position.set(0, 4, 1);
+    spot.target.position.set(0, 0, 0);
+    scene.add(spot);
+    scene.add(spot.target);
+
+    // ---- Milestone 3: data-driven room graph ----
+    // One room is "live" (built into roomGroup) at a time. Walking into an
+    // unlocked door — or pressing Interact near one — swaps the room.
+    const ROOM_SIZE = 12;          // room is ROOM_SIZE x ROOM_SIZE
+    const ROOM_HALF = ROOM_SIZE / 2;
+    const WALL_HEIGHT = 3.6;
+    const WALL_THICKNESS = 0.3;
+    const PLAYER_RADIUS = 0.4;
+    const EYE_HEIGHT = 1.6;
+    const DOOR_WIDTH = 1.6;   // gap left open in the wall for each door
+    const DOOR_HEIGHT = 2.6;
+    const DOOR_EDGE_MARGIN = 1.3; // keeps doors clear of the corners
+
+    // how close to a *solid* wall the camera is allowed to get
+    const MOVE_BOUND = ROOM_HALF - WALL_THICKNESS / 2 - PLAYER_RADIUS;
+    // how far past the wall plane counts as "through the doorway"
+    const TRANSITION_DEPTH = 0.9;
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x1a0f2e, // aubergine
+      roughness: 0.9,
+      metalness: 0.05,
+    });
+    const ceilingMat = new THREE.MeshStandardMaterial({
+      color: 0x140b25, // slightly darker aubergine
+      roughness: 0.95,
+      metalness: 0.0,
+    });
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x0d0a1f, // midnight
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0xd4a84b, // brass
+      roughness: 0.4,
+      metalness: 0.6,
+    });
+
+    // Everything belonging to the *current* room lives in this group so
+    // switching rooms is just "clear it out, build the new one".
+    const roomGroup = new THREE.Group();
+    scene.add(roomGroup);
+
+    function clearRoomGroup() {
+      for (let i = roomGroup.children.length - 1; i >= 0; i--) {
+        const child = roomGroup.children[i];
+        roomGroup.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        // per-door panel materials are unique (their color reflects lock
+        // state) and must be disposed; shared materials (wall/ceiling/
+        // floor/frame) are reused across rooms and left alone.
+        if (child.material && child.material.userData && child.material.userData.perDoor) {
+          child.material.dispose();
+        }
+      }
+    }
+
+    // ---- persistence: which connections have already been unlocked ----
+    const UNLOCK_STORAGE_KEY = "museum_unlocked_connections_v1";
+    function connectionIdFor(roomA, roomB) {
+      return [roomA, roomB].sort().join("__");
+    }
+    function loadUnlockedConnections() {
+      try {
+        const raw = localStorage.getItem(UNLOCK_STORAGE_KEY);
+        return new Set(raw ? JSON.parse(raw) : []);
+      } catch (e) {
+        return new Set();
+      }
+    }
+    function saveUnlockedConnections() {
+      try {
+        localStorage.setItem(UNLOCK_STORAGE_KEY, JSON.stringify([...unlockedConnections]));
+      } catch (e) {
+        // localStorage unavailable (private mode, etc.) — fail silently,
+        // doors just won't stay unlocked between visits.
+      }
+    }
+    const unlockedConnections = loadUnlockedConnections();
+
+    // ---- wall layout helpers ----
+    // Each wall is described by which world axis runs along it ("tangent"),
+    // and the fixed coordinate of the plane it sits on.
+    const WALL_DEFS = {
+      north: { tangentAxis: "x", fixedValue: -ROOM_HALF, normal: { x: 0, z: 1 } },
+      south: { tangentAxis: "x", fixedValue: ROOM_HALF, normal: { x: 0, z: -1 } },
+      west: { tangentAxis: "z", fixedValue: -ROOM_HALF, normal: { x: 1, z: 0 } },
+      east: { tangentAxis: "z", fixedValue: ROOM_HALF, normal: { x: -1, z: 0 } },
+    };
+    const WALL_ORDER = ["north", "east", "south", "west"];
+
+    function computeOffsets(count) {
+      const spanHalf = ROOM_HALF - DOOR_EDGE_MARGIN;
+      if (count <= 0) return [];
+      if (count === 1) return [0];
+      const offsets = [];
+      const step = (spanHalf * 2) / (count - 1);
+      for (let i = 0; i < count; i++) offsets.push(-spanHalf + i * step);
+      return offsets;
+    }
+
+    function anchorFor(wallId, offset) {
+      const def = WALL_DEFS[wallId];
+      return def.tangentAxis === "x"
+        ? { x: offset, z: def.fixedValue }
+        : { x: def.fixedValue, z: offset };
+    }
+
+    // doorRecords: metadata for every door in the currently-built room,
+    // used for proximity prompts, interaction, and movement collision.
+    let doorRecords = [];
+    let currentRoomId = null;
+
+    function buildWallWithGaps(wallId, doorsOnWall) {
+      const def = WALL_DEFS[wallId];
+      const dw = DOOR_WIDTH / 2;
+      const gaps = doorsOnWall
+        .map((d) => ({ offset: d.offset, half: dw }))
+        .sort((a, b) => a.offset - b.offset);
+
+      let cursor = -ROOM_HALF;
+      const segments = [];
+      gaps.forEach((g) => {
+        const segEnd = g.offset - g.half;
+        if (segEnd - cursor > 0.05) segments.push([cursor, segEnd]);
+        cursor = g.offset + g.half;
+      });
+      if (ROOM_HALF - cursor > 0.05) segments.push([cursor, ROOM_HALF]);
+
+      segments.forEach(([a, b]) => {
+        const length = b - a;
+        const center = (a + b) / 2;
+        let mesh;
+        if (def.tangentAxis === "x") {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(length, WALL_HEIGHT, WALL_THICKNESS), wallMat);
+          mesh.position.set(center, WALL_HEIGHT / 2, def.fixedValue);
+        } else {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(WALL_THICKNESS, WALL_HEIGHT, length), wallMat);
+          mesh.position.set(def.fixedValue, WALL_HEIGHT / 2, center);
+        }
+        roomGroup.add(mesh);
+      });
+    }
+
+    function makeDoorPanelMaterial() {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x6b3a49,
+        roughness: 0.6,
+        metalness: 0.1,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+      });
+      mat.userData.perDoor = true;
+      return mat;
+    }
+
+    function applyDoorLockVisual(record) {
+      if (record.locked) {
+        record.panelMesh.material.color.set(0x6b3a49); // dim rose — locked
+        record.panelMesh.material.emissive.set(0x000000);
+        record.panelMesh.material.emissiveIntensity = 0;
+      } else {
+        record.panelMesh.material.color.set(0xffe4a8); // warm glow — unlocked
+        record.panelMesh.material.emissive.set(0xffb84d);
+        record.panelMesh.material.emissiveIntensity = 0.55;
+      }
+    }
+
+    function buildDoorVisual(wallId, door, offset, connectionId, locked) {
+      const def = WALL_DEFS[wallId];
+      const anchor = anchorFor(wallId, offset);
+
+      const frameGeo =
+        def.tangentAxis === "x"
+          ? new THREE.BoxGeometry(DOOR_WIDTH, DOOR_HEIGHT, WALL_THICKNESS * 1.15)
+          : new THREE.BoxGeometry(WALL_THICKNESS * 1.15, DOOR_HEIGHT, DOOR_WIDTH);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+      roomGroup.add(frameMesh);
+
+      const panelMat = makeDoorPanelMaterial();
+      const panelGeo =
+        def.tangentAxis === "x"
+          ? new THREE.BoxGeometry(DOOR_WIDTH - 0.18, DOOR_HEIGHT - 0.18, WALL_THICKNESS * 0.6)
+          : new THREE.BoxGeometry(WALL_THICKNESS * 0.6, DOOR_HEIGHT - 0.18, DOOR_WIDTH - 0.18);
+      const panelMesh = new THREE.Mesh(panelGeo, panelMat);
+      panelMesh.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+      roomGroup.add(panelMesh);
+
+      const record = {
+        wallId,
+        offset,
+        anchor,
+        target: door.target,
+        label: door.label,
+        question: door.question,
+        connectionId,
+        locked,
+        gapHalfWidth: DOOR_WIDTH / 2,
+        normal: def.normal,
+        panelMesh,
+        frameMesh,
+        cooldownUntil: 0,
+      };
+      applyDoorLockVisual(record);
+      return record;
+    }
+
+    function buildRoomShell(roomId) {
+      clearRoomGroup();
+      currentRoomId = roomId;
+      const roomCfg = CONFIG.rooms[roomId];
+      if (!roomCfg) {
+        console.error(`Museum: no CONFIG.rooms entry for "${roomId}"`);
+        doorRecords = [];
+        return;
+      }
+
+      const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      roomGroup.add(floorMesh);
+
+      const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), ceilingMat);
+      ceilingMesh.rotation.x = Math.PI / 2;
+      ceilingMesh.position.y = WALL_HEIGHT;
+      roomGroup.add(ceilingMesh);
+
+      const doors = roomCfg.doors || [];
+      const doorsByWall = { north: [], east: [], south: [], west: [] };
+      doors.forEach((d, i) => doorsByWall[WALL_ORDER[i % 4]].push(d));
+
+      const newDoorRecords = [];
+      WALL_ORDER.forEach((wallId) => {
+        const doorsOnWall = doorsByWall[wallId];
+        const offsets = computeOffsets(doorsOnWall.length);
+        const doorsWithOffsets = doorsOnWall.map((d, i) => ({ ...d, offset: offsets[i] }));
+        buildWallWithGaps(wallId, doorsWithOffsets);
+        doorsWithOffsets.forEach((d) => {
+          const connectionId = connectionIdFor(roomId, d.target);
+          const locked = !unlockedConnections.has(connectionId);
+          newDoorRecords.push(buildDoorVisual(wallId, d, d.offset, connectionId, locked));
+        });
+      });
+      doorRecords = newDoorRecords;
+
+      if (roomIndicatorEl) {
+        roomIndicatorEl.textContent = `Exhibit ${roomCfg.exhibitNo} — ${roomCfg.title}`;
+      }
+    }
+
+    // ---- player start position ----
+    camera.position.set(0, EYE_HEIGHT, 3);
+    camera.rotation.order = "YXZ"; // standard FPS-style rotation order
+    let yaw = 0;
+    let pitch = 0;
+    const PITCH_LIMIT = Math.PI / 2 - 0.05;
+
+    // ---- keyboard movement state (WASD + arrow keys) ----
+    const keys = { forward: false, backward: false, left: false, right: false };
+    const KEY_MAP = {
+      KeyW: "forward", ArrowUp: "forward",
+      KeyS: "backward", ArrowDown: "backward",
+      KeyA: "left", ArrowLeft: "left",
+      KeyD: "right", ArrowRight: "right",
+    };
+
+    window.addEventListener("keydown", (e) => {
+      if (!entered) return;
+      const dir = KEY_MAP[e.code];
+      if (dir) {
+        keys[dir] = true;
+        e.preventDefault();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      const dir = KEY_MAP[e.code];
+      if (dir) keys[dir] = false;
+    });
+
+    // ---- look controls: click-and-drag (desktop) / touch-drag (mobile) ----
+    // Deliberately not using the Pointer Lock API: it needs an explicit
+    // permission grant that sandboxed preview iframes can refuse outright,
+    // whereas drag-to-look works everywhere with no permission step.
+    const LOOK_SPEED = 0.0032;
+    let looking = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    function startLook(x, y) {
+      looking = true;
+      lastPointerX = x;
+      lastPointerY = y;
+    }
+    function moveLook(x, y) {
+      if (!looking) return;
+      const dx = x - lastPointerX;
+      const dy = y - lastPointerY;
+      lastPointerX = x;
+      lastPointerY = y;
+      yaw -= dx * LOOK_SPEED;
+      pitch -= dy * LOOK_SPEED;
+      pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+    }
+    function endLook() {
+      looking = false;
+    }
+
+    const canvasEl = renderer.domElement;
+
+    canvasEl.addEventListener("mousedown", (e) => {
+      if (!entered) return;
+      startLook(e.clientX, e.clientY);
+    });
+    window.addEventListener("mousemove", (e) => moveLook(e.clientX, e.clientY));
+    window.addEventListener("mouseup", endLook);
+
+    canvasEl.addEventListener("touchstart", (e) => {
+      if (!entered) return;
+      const t = e.changedTouches[0];
+      startLook(t.clientX, t.clientY);
+    }, { passive: true });
+    canvasEl.addEventListener("touchmove", (e) => {
+      const t = e.changedTouches[0];
+      moveLook(t.clientX, t.clientY);
+    }, { passive: true });
+    canvasEl.addEventListener("touchend", endLook);
+    canvasEl.addEventListener("touchcancel", endLook);
+
+    // ---- virtual joystick (mobile movement) ----
+    const joystick = { x: 0, y: 0, active: false, pointerId: null };
+    const joyBase = document.getElementById("joystick-base");
+    const joyKnob = document.getElementById("joystick-knob");
+    const JOY_RADIUS = 40; // max knob travel in px
+
+    function joyReset() {
+      joystick.x = 0;
+      joystick.y = 0;
+      joystick.active = false;
+      joystick.pointerId = null;
+      joyKnob.style.transform = "translate(0px, 0px)";
+    }
+
+    function joyUpdate(clientX, clientY) {
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > JOY_RADIUS) {
+        dx = (dx / dist) * JOY_RADIUS;
+        dy = (dy / dist) * JOY_RADIUS;
+      }
+      joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+      joystick.x = dx / JOY_RADIUS; // -1 (left) .. 1 (right)
+      joystick.y = dy / JOY_RADIUS; // -1 (up/forward) .. 1 (down/backward)
+    }
+
+    if (joyBase && joyKnob) {
+      joyBase.addEventListener("touchstart", (e) => {
+        if (!entered) return;
+        const t = e.changedTouches[0];
+        joystick.active = true;
+        joystick.pointerId = t.identifier;
+        joyUpdate(t.clientX, t.clientY);
+        e.preventDefault();
+      }, { passive: false });
+
+      joyBase.addEventListener("touchmove", (e) => {
+        if (!joystick.active) return;
+        for (const t of e.changedTouches) {
+          if (t.identifier === joystick.pointerId) joyUpdate(t.clientX, t.clientY);
+        }
+        e.preventDefault();
+      }, { passive: false });
+
+      const joyEnd = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === joystick.pointerId) joyReset();
+        }
+      };
+      joyBase.addEventListener("touchend", joyEnd);
+      joyBase.addEventListener("touchcancel", joyEnd);
+    }
+
+    // ---- interact button: visible + styled now, wired up to doors /
+    // photos / objects in a later milestone. Inert on purpose here. ----
+    const interactBtn = document.getElementById("interact-btn");
+    if (interactBtn) {
+      interactBtn.addEventListener("click", () => {
+        // Milestone hook: door / photo / object interaction lands here.
+      });
+    }
+
+    // ---- movement update (called every frame) ----
+    const forwardVec = new THREE.Vector3();
+    const rightVec = new THREE.Vector3();
+    const UP_AXIS = new THREE.Vector3(0, 1, 0);
+    const MOVE_SPEED = 3.2; // units per second
+
+    function updateMovement(delta) {
+      let inputX = 0; // strafe: -1 left .. 1 right
+      let inputZ = 0; // -1 forward .. 1 backward
+      if (keys.forward) inputZ -= 1;
+      if (keys.backward) inputZ += 1;
+      if (keys.left) inputX -= 1;
+      if (keys.right) inputX += 1;
+
+      inputX += joystick.x;
+      inputZ += joystick.y;
+
+      const mag = Math.hypot(inputX, inputZ);
+      if (mag < 0.001) return;
+      const clampedMag = Math.min(mag, 1);
+      inputX /= mag;
+      inputZ /= mag;
+
+      forwardVec.set(0, 0, -1).applyAxisAngle(UP_AXIS, yaw);
+      rightVec.set(1, 0, 0).applyAxisAngle(UP_AXIS, yaw);
+
+      const step = MOVE_SPEED * delta * clampedMag;
+      const newX = camera.position.x + (forwardVec.x * -inputZ + rightVec.x * inputX) * step;
+      const newZ = camera.position.z + (forwardVec.z * -inputZ + rightVec.z * inputX) * step;
+
+      // simple AABB collision: clamp inside the room so the player can
+      // never walk through a wall or leave the room
+      camera.position.x = Math.max(-MOVE_BOUND, Math.min(MOVE_BOUND, newX));
+      camera.position.z = Math.max(-MOVE_BOUND, Math.min(MOVE_BOUND, newZ));
+    }
+
+    // ---- resize handling ----
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---- render loop ----
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.1); // guard against tab-switch spikes
+
+      if (entered) {
+        updateMovement(delta);
+        camera.rotation.y = yaw;
+        camera.rotation.x = pitch;
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    if (statusEl) statusEl.textContent = "Engine — Milestone 2: movement ready";
+  } catch (err) {
+    // The start screen and Enter button still work even if this fails —
+    // only the 3D scene underneath is affected.
+    console.error("Museum engine failed to initialize:", err);
+    if (statusEl) statusEl.textContent = "Engine — scene failed to load (see console)";
+  }
+</script>
+
+</body>
+</html>

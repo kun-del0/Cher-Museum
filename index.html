@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Museum of Memories — Cherry</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --wall: #1a0f2e;
+    --floor: #0d0a1f;
+    --glow: #ffe4a8;
+    --brass: #d4a84b;
+    --rose: #ff8fa3;
+    --ink: #f4efe6;
+
+    --font-display: 'Cormorant Garamond', serif;
+    --font-ui: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--floor);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---------- CANVAS / SCENE LAYER ---------- */
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+
+  #scene-root canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* small persistent engine-status label, styled like the exhibit mono labels */
+  #engine-status {
+    position: fixed;
+    left: 16px;
+    bottom: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--brass);
+    opacity: 0.75;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+
+  /* ---------- START SCREEN OVERLAY ---------- */
+
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 38%, rgba(255,228,168,0.14), transparent 60%),
+      linear-gradient(180deg, #150c26 0%, var(--wall) 55%, var(--floor) 100%);
+    transition: opacity 0.9s ease, visibility 0.9s ease;
+  }
+
+  #start-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #start-screen { transition: none; }
+  }
+
+  .start-card {
+    text-align: center;
+    padding: 40px 32px;
+    max-width: 480px;
+  }
+
+  .start-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 18px;
+  }
+
+  .start-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(2.4rem, 9vw, 4rem);
+    line-height: 1.05;
+    color: var(--ink);
+    margin: 0 0 6px 0;
+  }
+
+  .start-title em {
+    font-style: italic;
+    color: var(--glow);
+  }
+
+  .start-subtitle {
+    font-family: var(--font-ui);
+    font-weight: 400;
+    font-size: 15px;
+    color: rgba(244,239,230,0.7);
+    line-height: 1.6;
+    margin: 14px 0 34px 0;
+  }
+
+  .enter-btn {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1a0f2e;
+    background: var(--brass);
+    border: none;
+    border-radius: 999px;
+    padding: 15px 40px;
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(212,168,75,0.4), 0 8px 30px rgba(255,228,168,0.18);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+
+  .enter-btn:hover {
+    background: var(--glow);
+    box-shadow: 0 0 0 1px rgba(255,228,168,0.6), 0 10px 36px rgba(255,228,168,0.28);
+  }
+
+  .enter-btn:active {
+    transform: scale(0.97);
+  }
+
+  .enter-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter-btn { transition: none; }
+  }
+
+  /* ---------- CONTROLS HINT (desktop) ---------- */
+
+  #controls-hint {
+    position: fixed;
+    right: 16px;
+    bottom: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--brass);
+    opacity: 0.6;
+    pointer-events: none;
+    text-transform: uppercase;
+    text-align: right;
+  }
+
+  @media (pointer: coarse) {
+    #controls-hint { display: none; }
+  }
+
+  /* ---------- TOUCH CONTROLS (mobile) ---------- */
+
+  #touch-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+  }
+
+  @media (pointer: coarse) {
+    #touch-controls { display: block; }
+  }
+
+  #joystick-base {
+    position: absolute;
+    left: 20px;
+    bottom: 24px;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: rgba(26,15,46,0.55);
+    border: 1px solid rgba(212,168,75,0.35);
+    box-shadow: inset 0 0 18px rgba(255,228,168,0.08);
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  #joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    background: var(--brass);
+    box-shadow: 0 0 14px rgba(255,228,168,0.35);
+    will-change: transform;
+  }
+
+  #interact-btn {
+    position: absolute;
+    right: 26px;
+    bottom: 36px;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    border: 1px solid rgba(212,168,75,0.5);
+    background: rgba(26,15,46,0.55);
+    color: var(--brass);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  #interact-btn:active {
+    background: rgba(212,168,75,0.25);
+  }
+
+  #interact-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 2px;
+  }
+
+  /* ---------- ROOM INDICATOR (temporary debug label — the real
+     animated entry plaque comes in a later milestone) ---------- */
+
+  #room-indicator {
+    position: fixed;
+    left: 16px;
+    top: 14px;
+    z-index: 5;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--brass);
+    opacity: 0.85;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+
+  /* ---------- DOOR PROXIMITY PROMPT ---------- */
+
+  #door-prompt {
+    position: fixed;
+    left: 50%;
+    bottom: 118px;
+    transform: translateX(-50%);
+    z-index: 5;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(26,15,46,0.72);
+    border: 1px solid rgba(212,168,75,0.4);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.4;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+  }
+
+  #door-prompt.visible {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #door-prompt { transition: none; }
+  }
+
+  @media (pointer: coarse) {
+    #door-prompt { bottom: 128px; }
+  }
+
+  /* ---------- DOOR QUESTION OVERLAY ---------- */
+
+  #door-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(8,5,16,0.72);
+    backdrop-filter: blur(2px);
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+  }
+
+  #door-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #door-overlay { transition: none; }
+  }
+
+  .door-overlay-card {
+    width: 100%;
+    max-width: 420px;
+    background: linear-gradient(180deg, #201336 0%, var(--wall) 100%);
+    border: 1px solid rgba(212,168,75,0.4);
+    border-radius: 18px;
+    padding: 30px 28px 26px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .door-overlay-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 10px;
+  }
+
+  .door-overlay-prompt {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+  }
+
+  .door-overlay-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212,168,75,0.4);
+    background: rgba(13,10,31,0.6);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
+  .door-overlay-input:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 1px;
+  }
+
+  .door-overlay-feedback {
+    min-height: 20px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--rose);
+    margin: 0 0 6px 0;
+  }
+
+  .door-overlay-feedback.success {
+    color: var(--glow);
+  }
+
+  .door-overlay-hint {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: rgba(244,239,230,0.7);
+    margin: 0 0 14px 0;
+  }
+
+  .door-overlay-hint.hidden {
+    display: none;
+  }
+
+  .door-overlay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .door-overlay-btn {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 999px;
+    padding: 11px 22px;
+    cursor: pointer;
+  }
+
+  .door-overlay-btn.primary {
+    color: #1a0f2e;
+    background: var(--brass);
+  }
+
+  .door-overlay-btn.primary:hover {
+    background: var(--glow);
+  }
+
+  .door-overlay-btn.ghost {
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid rgba(244,239,230,0.3);
+  }
+
+  .door-overlay-btn.ghost:hover {
+    border-color: rgba(244,239,230,0.6);
+  }
+
+  .door-overlay-btn:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 2px;
+  }
+
+  .door-overlay-btn.hidden {
+    display: none;
+  }
+
+  /* ---------- PHOTO LIGHTBOX OVERLAY ---------- */
+
+  #photo-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 21;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+  }
+
+  #photo-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #photo-overlay { transition: none; }
+  }
+
+  .photo-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8,5,16,0.86);
+    backdrop-filter: blur(2px);
+  }
+
+  .photo-overlay-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #201336 0%, var(--wall) 100%);
+    border: 1px solid rgba(212,168,75,0.4);
+    border-radius: 18px;
+    padding: 20px 20px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .photo-overlay-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid rgba(244,239,230,0.3);
+    background: rgba(13,10,31,0.7);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .photo-overlay-close:hover {
+    border-color: rgba(244,239,230,0.6);
+  }
+
+  .photo-overlay-close:focus-visible {
+    outline: 2px solid var(--rose);
+    outline-offset: 2px;
+  }
+
+  .photo-overlay-image-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(13,10,31,0.5);
+    border: 1px solid rgba(212,168,75,0.25);
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 160px;
+  }
+
+  #photo-overlay-image {
+    display: block;
+    max-width: 100%;
+    max-height: 62vh;
+    width: auto;
+    height: auto;
+  }
+
+  .photo-overlay-caption-wrap {
+    margin-top: 16px;
+  }
+
+  .photo-overlay-year {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 6px;
+  }
+
+  .photo-overlay-caption {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 1.35rem;
+    line-height: 1.3;
+    color: var(--ink);
+    margin: 0 0 8px 0;
+  }
+
+  .photo-overlay-note {
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: rgba(244,239,230,0.75);
+    margin: 0;
+  }
+
+  .photo-overlay-note:empty {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     CONFIG — all personal / editable content lives here.
+     Replace placeholders (photos, videos, questions, URLs, etc.)
+     without touching the engine code below.
+     ============================================================ -->
+<script>
+  // Small helper: draws a labelled placeholder image as an inline SVG data
+  // URI, purely so the wall-frame + lightbox system has something real to
+  // display before actual photos are uploaded. Never a real memory — just
+  // a coloured rectangle + label. Safe to delete once real photos.src
+  // values are filled in below.
+  function placeholderPhotoDataUri(label, w, h) {
+    const bg = "#241536";
+    const fg = "#d4a84b";
+    const fontSize = Math.max(14, Math.round(Math.min(w, h) / 11));
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+      `<rect width="100%" height="100%" fill="${bg}"/>` +
+      `<rect x="6" y="6" width="${w - 12}" height="${h - 12}" fill="none" stroke="${fg}" stroke-width="2" stroke-dasharray="8 7"/>` +
+      `<text x="50%" y="50%" fill="${fg}" font-family="monospace" font-size="${fontSize}" text-anchor="middle" dominant-baseline="middle">${label}</text>` +
+      `</svg>`;
+    return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  }
+
+  const CONFIG = {
+    herName: "Cherry",
+    museumTitle: "Museum of Memories",
+    startSubtitle: "A small private gallery, built just for you. Step inside whenever you're ready.",
+
+    rooms: {
+      room1: {
+        exhibitNo: "01",
+        title: "Cherry — Growing Up",
+        type: "photo-gallery",
+        photos: [
+          // Sample/placeholder entries so the wall-frame, chronological
+          // sort, and lightbox can be tested before real photos exist.
+          // Replace src/year/caption/note with real content later — do
+          // not treat this text as an actual memory.
+          //
+          // Optional: any photo entry may add a manual placement override
+          // instead of relying on automatic layout, e.g.:
+          //   position: { wall: "north", offset: -1.2 }
+          // wall is one of "north" | "east" | "south" | "west"; offset is
+          // world units from that wall's center (roughly -5.2..5.2 for the
+          // current room size). The engine validates this against the
+          // room's actual doors/corners and silently falls back to
+          // automatic placement (with a console warning) if it would ever
+          // put the frame through a wall or over a doorway — no engine
+          // changes needed to use it.
+          {
+            src: placeholderPhotoDataUri("Placeholder — 2019", 1000, 420),
+            year: "2019",
+            caption: "Sample photo — replace with a real memory",
+            note: "Placeholder note. Swap this entry's src/year/caption/note once real photos are ready."
+          },
+          {
+            src: placeholderPhotoDataUri("Placeholder — 2003", 800, 600),
+            year: "2003",
+            caption: "Sample photo — replace with a real memory",
+            note: "Placeholder note."
+          },
+          {
+            src: placeholderPhotoDataUri("Placeholder — 2015", 600, 900),
+            year: "2015",
+            caption: "Sample photo — replace with a real memory",
+            note: "Placeholder note."
+          },
+          {
+            src: placeholderPhotoDataUri("Placeholder — 2011", 700, 700),
+            year: "2011",
+            caption: "Sample photo — replace with a real memory",
+            note: "Placeholder note."
+          },
+          {
+            src: "photos/room1/coming-soon.webp", // intentionally missing —
+            // demonstrates the never-crash placeholder-frame fallback
+            year: "2022",
+            caption: "Sample photo — file not uploaded yet",
+            note: "This entry points at a file that doesn't exist yet, to show the missing-photo fallback frame."
+          }
+        ],
+        doors: [
+          {
+            target: "room2",
+            label: "Family Archive",
+            question: {
+              prompt: "SAMPLE QUESTION — what is 2 + 2?",
+              answers: ["4", "four"],
+              hint: "It's a basic sum."
+            }
+          },
+          {
+            target: "room3",
+            label: "Friends Archive",
+            question: {
+              prompt: "SAMPLE QUESTION — what color is the sky on a clear day?",
+              answers: ["blue"],
+              hint: "Same color as the ocean, usually."
+            }
+          },
+          {
+            target: "room5",
+            label: "Our Videos",
+            question: {
+              prompt: "SAMPLE QUESTION — how many days are in a week?",
+              answers: ["7", "seven"],
+              hint: "One for each day from Monday to Sunday."
+            }
+          }
+        ]
+      },
+
+      room2: {
+        exhibitNo: "02",
+        title: "Cherry + Family",
+        type: "photo-gallery",
+        photos: [],
+        doors: [
+          { target: "room1", label: "Back to Growing Up", question: { prompt: "SAMPLE QUESTION — what is 2 + 2?", answers: ["4", "four"], hint: "It's a basic sum." } },
+          { target: "room4", label: "Cherry Archive", question: { prompt: "SAMPLE QUESTION — what is the opposite of hot?", answers: ["cold"], hint: "Think ice, not fire." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — what is the first letter of the alphabet?", answers: ["a"], hint: "It comes right before B." } }
+        ]
+      },
+
+      room3: {
+        exhibitNo: "03",
+        title: "Cherry + Friends",
+        type: "photo-gallery",
+        photos: [],
+        doors: [
+          { target: "room1", label: "Back to Growing Up", question: { prompt: "SAMPLE QUESTION — what color is the sky on a clear day?", answers: ["blue"], hint: "Same color as the ocean, usually." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — how many legs does a spider have?", answers: ["8", "eight"], hint: "It's not 6 — that's an insect." } }
+        ]
+      },
+
+      room4: {
+        exhibitNo: "04",
+        title: "The Cherry Archive",
+        type: "interest-gallery",
+        playlistUrl: "YOUTUBE_PLAYLIST_URL", // placeholder — add later
+        interests: [
+          { type: "book", title: "PLACEHOLDER BOOK TITLE" },
+          { type: "game", title: "PLACEHOLDER GAME TITLE" },
+          { type: "flower", title: "PLACEHOLDER FLOWER" }
+        ],
+        doors: [
+          { target: "room2", label: "Back to Family Archive", question: { prompt: "SAMPLE QUESTION — what is the opposite of hot?", answers: ["cold"], hint: "Think ice, not fire." } },
+          { target: "room5", label: "Our Videos", question: { prompt: "SAMPLE QUESTION — what do bees make?", answers: ["honey"], hint: "It's sweet and golden." } }
+        ]
+      },
+
+      room5: {
+        exhibitNo: "05",
+        title: "Our Videos",
+        type: "video-gallery",
+        videos: [
+          // { src: "videos/placeholder.mp4", poster: "videos/placeholder-thumb.webp", title: "Placeholder video", note: "Placeholder caption." }
+        ],
+        doors: [
+          { target: "room1", label: "Growing Up", question: { prompt: "SAMPLE QUESTION — how many days are in a week?", answers: ["7", "seven"], hint: "One for each day from Monday to Sunday." } },
+          { target: "room2", label: "Family Archive", question: { prompt: "SAMPLE QUESTION — what is the first letter of the alphabet?", answers: ["a"], hint: "It comes right before B." } },
+          { target: "room3", label: "Friends Archive", question: { prompt: "SAMPLE QUESTION — how many legs does a spider have?", answers: ["8", "eight"], hint: "It's not 6 — that's an insect." } },
+          { target: "room4", label: "Cherry Archive", question: { prompt: "SAMPLE QUESTION — what do bees make?", answers: ["honey"], hint: "It's sweet and golden." } },
+          { target: "room6", label: "Final Room", question: { prompt: "SAMPLE QUESTION — type the word \"open\" to continue.", answers: ["open"], hint: "It's the same word as in the question." }, oneWay: true }
+        ]
+      },
+
+      room6: {
+        exhibitNo: "06",
+        title: "The Final Room",
+        type: "external-walls",
+        entryFacingWall: "wallOfVoices",
+        externalWalls: [
+          { id: "wallOfVoices", title: "Wall of Voices", url: "WALL_OF_VOICES_URL", primary: true, position: "opposite-entry" },
+          { id: "wall2", title: "Wall Exhibit 2", url: "EXTERNAL_URL_2" },
+          { id: "wall3", title: "Wall Exhibit 3", url: "EXTERNAL_URL_3" },
+          { id: "wall4", title: "Wall Exhibit 4", url: "EXTERNAL_URL_4" }
+        ]
+      }
+    },
+
+    finale: {
+      title: "For You",
+      message: "PLACEHOLDER FINALE MESSAGE — replace with the real closing message for Cherry."
+    }
+  };
+
+  // Expose for later milestones / debugging
+  window.MUSEUM_CONFIG = CONFIG;
+</script>
+
+<!-- ============================================================
+     START SCREEN
+     ============================================================ -->
+<div id="start-screen">
+  <div class="start-card">
+    <div class="start-eyebrow" id="exhibit-eyebrow">Private Gallery — By Invitation</div>
+    <h1 class="start-title" id="museum-title">Museum of <em>Memories</em></h1>
+    <p class="start-subtitle" id="start-subtitle"></p>
+    <button class="enter-btn" id="enter-btn">Enter</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCENE ROOT (Three.js canvas mounts here)
+     ============================================================ -->
+<div id="scene-root"></div>
+<div id="engine-status">Engine — Milestone 1: scene ready</div>
+<div id="controls-hint">WASD / Arrows — move<br />Click + drag — look</div>
+<div id="room-indicator"></div>
+<div id="door-prompt"></div>
+
+<!-- ============================================================
+     TOUCH CONTROLS — visible joystick + interact button on
+     touch devices (CSS-gated via @media (pointer: coarse)).
+     The interact button now opens a nearby door's question
+     overlay (Milestone 3) — it will also handle photos/objects
+     in a later milestone.
+     ============================================================ -->
+<div id="touch-controls" aria-hidden="true">
+  <div id="joystick-base">
+    <div id="joystick-knob"></div>
+  </div>
+  <button id="interact-btn" type="button" aria-label="Interact">•</button>
+</div>
+
+<!-- ============================================================
+     DOOR QUESTION OVERLAY — shown when the player walks into a
+     locked door or interacts with one nearby.
+     ============================================================ -->
+<div id="door-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="door-overlay-prompt">
+  <div class="door-overlay-card">
+    <div class="door-overlay-eyebrow" id="door-overlay-label">Locked Door</div>
+    <p class="door-overlay-prompt" id="door-overlay-prompt"></p>
+    <input type="text" id="door-overlay-input" class="door-overlay-input" autocomplete="off" placeholder="Your answer…" />
+    <p class="door-overlay-feedback" id="door-overlay-feedback" aria-live="polite"></p>
+    <p class="door-overlay-hint hidden" id="door-overlay-hint"></p>
+    <div class="door-overlay-actions">
+      <button type="button" class="door-overlay-btn primary" id="door-overlay-submit">Answer</button>
+      <button type="button" class="door-overlay-btn ghost hidden" id="door-overlay-skip">Skip for now</button>
+      <button type="button" class="door-overlay-btn ghost" id="door-overlay-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PHOTO LIGHTBOX OVERLAY — shown when a wall-mounted photo frame
+     is opened (interact button / E key / click-tap while nearby).
+     ============================================================ -->
+<div id="photo-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="photo-overlay-caption">
+  <div class="photo-overlay-backdrop" id="photo-overlay-backdrop"></div>
+  <div class="photo-overlay-card">
+    <button type="button" class="photo-overlay-close" id="photo-overlay-close" aria-label="Close">✕</button>
+    <div class="photo-overlay-image-wrap">
+      <img id="photo-overlay-image" alt="" />
+    </div>
+    <div class="photo-overlay-caption-wrap">
+      <div class="photo-overlay-year" id="photo-overlay-year"></div>
+      <p class="photo-overlay-caption" id="photo-overlay-caption"></p>
+      <p class="photo-overlay-note" id="photo-overlay-note"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     START-SCREEN / UI WIRING — plain script, no dependency on
+     Three.js or any CDN import. This guarantees the Enter button
+     and Enter key always work even if the 3D engine below fails
+     to load for any reason (offline, blocked CDN, etc).
+     ============================================================ -->
+<script>
+  // ---- fill in personal text from CONFIG ----
+  document.getElementById("start-subtitle").textContent =
+    CONFIG.startSubtitle || `Happy birthday, ${CONFIG.herName}.`;
+
+  const startScreen = document.getElementById("start-screen");
+  const enterBtn = document.getElementById("enter-btn");
+  let entered = false;
+
+  function enterMuseum() {
+    if (entered) return;
+    entered = true;
+    startScreen.classList.add("hidden");
+    // Milestone hook: this is where optional room music will start
+    // (Milestone 9) once the user gesture has fired.
+  }
+
+  // mouse / touch click
+  enterBtn.addEventListener("click", enterMuseum);
+
+  // keyboard Enter — listens on the whole document, not just the
+  // button, so it works whether or not the button has focus yet
+  document.addEventListener("keydown", (e) => {
+    if (entered) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      enterMuseum();
+    }
+  });
+</script>
+
+<!-- ============================================================
+     ENGINE — Three.js scene bootstrap (Milestone 1 scope only:
+     empty walkable canvas, no room geometry / movement yet).
+     Isolated from the UI script above and wrapped in try/catch
+     so a scene failure can never disable the start screen.
+
+     Loaded as a classic (non-module) script from cdnjs, NOT via
+     ES-module import: dynamic `import()` of a remote module
+     requires the CDN response to satisfy strict CORS/module
+     MIME rules, and sandboxed preview environments (including
+     Claude's own preview iframe) can block that fetch even
+     though a plain <script src="..."> tag is allowed through.
+     A classic script has no such restriction and is the most
+     reliable option both for opening the file directly in
+     Chrome and for in-app preview.
+     ============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const statusEl = document.getElementById("engine-status");
+
+  try {
+    if (typeof THREE === "undefined") {
+      throw new Error("THREE failed to load from CDN (window.THREE is undefined)");
+    }
+
+    // ---- basic scene / camera / renderer ----
+    const sceneRoot = document.getElementById("scene-root");
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d0a1f); // midnight floor tone as void colour
+
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 1.6, 4); // roughly eye height, standing back a little
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    sceneRoot.appendChild(renderer.domElement);
+
+    // ---- warm gallery-at-night lighting (placeholder, room-agnostic) ----
+    const ambient = new THREE.AmbientLight(0x2a1f40, 0.9);
+    scene.add(ambient);
+
+    const spot = new THREE.SpotLight(0xffe4a8, 3.2, 12, Math.PI / 5, 0.5, 1.2);
+    spot.position.set(0, 4, 1);
+    spot.target.position.set(0, 0, 0);
+    scene.add(spot);
+    scene.add(spot.target);
+
+    // ---- Milestone 3: DOM refs for door prompt + question overlay ----
+    const roomIndicatorEl = document.getElementById("room-indicator");
+    const doorPromptEl = document.getElementById("door-prompt");
+    const doorOverlayEl = document.getElementById("door-overlay");
+    const doorOverlayLabelEl = document.getElementById("door-overlay-label");
+    const doorOverlayPromptEl = document.getElementById("door-overlay-prompt");
+    const doorOverlayInputEl = document.getElementById("door-overlay-input");
+    const doorOverlayFeedbackEl = document.getElementById("door-overlay-feedback");
+    const doorOverlayHintEl = document.getElementById("door-overlay-hint");
+    const doorOverlaySubmitEl = document.getElementById("door-overlay-submit");
+    const doorOverlaySkipEl = document.getElementById("door-overlay-skip");
+    const doorOverlayCloseEl = document.getElementById("door-overlay-close");
+    const photoOverlayEl = document.getElementById("photo-overlay");
+    const photoOverlayBackdropEl = document.getElementById("photo-overlay-backdrop");
+    const photoOverlayImageEl = document.getElementById("photo-overlay-image");
+    const photoOverlayYearEl = document.getElementById("photo-overlay-year");
+    const photoOverlayCaptionEl = document.getElementById("photo-overlay-caption");
+    const photoOverlayNoteEl = document.getElementById("photo-overlay-note");
+    const photoOverlayCloseEl = document.getElementById("photo-overlay-close");
+
+    // ---- Milestone 3: data-driven room graph ----
+    // One room is "live" (built into roomGroup) at a time. Walking into an
+    // unlocked door — or pressing Interact near one — swaps the room.
+    const ROOM_SIZE = 12;          // room is ROOM_SIZE x ROOM_SIZE
+    const ROOM_HALF = ROOM_SIZE / 2;
+    const WALL_HEIGHT = 3.6;
+    const WALL_THICKNESS = 0.3;
+    const PLAYER_RADIUS = 0.4;
+    const EYE_HEIGHT = 1.6;
+    const DOOR_WIDTH = 1.6;   // gap left open in the wall for each door
+    const DOOR_HEIGHT = 2.6;
+    const DOOR_EDGE_MARGIN = 1.3; // keeps doors clear of the corners
+
+    // ---- Milestone 4: wall-mounted photo frames ----
+    const PHOTO_MAX_DIM = 1.7;      // largest side a frame can be, in world units
+    const PHOTO_MIN_DIM = 0.55;     // smallest side, so tiny/odd aspects stay legible
+    const PHOTO_HEIGHT = 1.75;      // mount height (frame centre) above the floor
+    const PHOTO_WALL_MARGIN = 0.55; // keeps frames clear of corners / door frames
+    const PHOTO_INTERACT_DISTANCE = 1.9;
+    const FRAME_BORDER_PAD = 0.12;  // physical brass border added around every frame's image plane
+    const PHOTO_MIN_SPACING = 0.35; // minimum gap between two neighboring frames' borders
+    const PHOTO_LOAD_TIMEOUT_MS = 6000; // don't let one slow image stall the whole room's layout
+
+    // how close to a *solid* wall the camera is allowed to get
+    const MOVE_BOUND = ROOM_HALF - WALL_THICKNESS / 2 - PLAYER_RADIUS;
+    // how far past the wall plane counts as "through the doorway"
+    const TRANSITION_DEPTH = 0.9;
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x1a0f2e, // aubergine
+      roughness: 0.9,
+      metalness: 0.05,
+    });
+    const ceilingMat = new THREE.MeshStandardMaterial({
+      color: 0x140b25, // slightly darker aubergine
+      roughness: 0.95,
+      metalness: 0.0,
+    });
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x0d0a1f, // midnight
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0xd4a84b, // brass
+      roughness: 0.4,
+      metalness: 0.6,
+    });
+
+    // Everything belonging to the *current* room lives in this group so
+    // switching rooms is just "clear it out, build the new one".
+    const roomGroup = new THREE.Group();
+    scene.add(roomGroup);
+
+    function clearRoomGroup() {
+      roomGeneration++; // invalidate any in-flight async photo image loads
+      for (let i = roomGroup.children.length - 1; i >= 0; i--) {
+        const child = roomGroup.children[i];
+        roomGroup.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        // per-instance materials (door panels, photo frames) are unique
+        // and must be disposed, along with any texture they own; shared
+        // materials (wall/ceiling/floor/frame) are reused across rooms
+        // and left alone.
+        if (child.material && child.material.userData && child.material.userData.disposable) {
+          if (child.material.map) {
+            child.material.map.dispose();
+            child.material.map = null;
+          }
+          child.material.dispose();
+        }
+      }
+    }
+
+    // ---- persistence: which connections have already been unlocked ----
+    const UNLOCK_STORAGE_KEY = "museum_unlocked_connections_v1";
+    function connectionIdFor(roomA, roomB) {
+      return [roomA, roomB].sort().join("__");
+    }
+    function loadUnlockedConnections() {
+      try {
+        const raw = localStorage.getItem(UNLOCK_STORAGE_KEY);
+        return new Set(raw ? JSON.parse(raw) : []);
+      } catch (e) {
+        return new Set();
+      }
+    }
+    function saveUnlockedConnections() {
+      try {
+        localStorage.setItem(UNLOCK_STORAGE_KEY, JSON.stringify([...unlockedConnections]));
+      } catch (e) {
+        // localStorage unavailable (private mode, etc.) — fail silently,
+        // doors just won't stay unlocked between visits.
+      }
+    }
+    const unlockedConnections = loadUnlockedConnections();
+
+    // ---- wall layout helpers ----
+    // Each wall is described by which world axis runs along it ("tangent"),
+    // and the fixed coordinate of the plane it sits on.
+    const WALL_DEFS = {
+      north: { tangentAxis: "x", fixedValue: -ROOM_HALF, normal: { x: 0, z: 1 } },
+      south: { tangentAxis: "x", fixedValue: ROOM_HALF, normal: { x: 0, z: -1 } },
+      west: { tangentAxis: "z", fixedValue: -ROOM_HALF, normal: { x: 1, z: 0 } },
+      east: { tangentAxis: "z", fixedValue: ROOM_HALF, normal: { x: -1, z: 0 } },
+    };
+    const WALL_ORDER = ["north", "east", "south", "west"];
+
+    function computeOffsets(count) {
+      const spanHalf = ROOM_HALF - DOOR_EDGE_MARGIN;
+      if (count <= 0) return [];
+      if (count === 1) return [0];
+      const offsets = [];
+      const step = (spanHalf * 2) / (count - 1);
+      for (let i = 0; i < count; i++) offsets.push(-spanHalf + i * step);
+      return offsets;
+    }
+
+    function anchorFor(wallId, offset) {
+      const def = WALL_DEFS[wallId];
+      return def.tangentAxis === "x"
+        ? { x: offset, z: def.fixedValue }
+        : { x: def.fixedValue, z: offset };
+    }
+
+    // doorRecords: metadata for every door in the currently-built room,
+    // used for proximity prompts, interaction, and movement collision.
+    let doorRecords = [];
+    // photoRecords: metadata for every wall-mounted photo frame in the
+    // currently-built room, used for proximity prompts + the lightbox.
+    let photoRecords = [];
+    let currentRoomId = null;
+    // bumped every time the room is rebuilt, so an async photo image that
+    // finishes loading after the player has already left the room knows
+    // to discard itself instead of mutating a disposed mesh.
+    let roomGeneration = 0;
+
+    // Free (non-door) span available for hanging photos along a wall,
+    // reusing the same gap-around-doors logic the walls themselves use.
+    function computeFreeWallSegments(wallId) {
+      const doorsOnWall = doorRecords.filter((r) => r.wallId === wallId);
+      const gaps = doorsOnWall
+        .map((r) => ({ offset: r.offset, half: r.gapHalfWidth }))
+        .sort((a, b) => a.offset - b.offset);
+
+      let cursor = -ROOM_HALF;
+      const segments = [];
+      gaps.forEach((g) => {
+        const segEnd = g.offset - g.half;
+        if (segEnd - cursor > 0.05) segments.push([cursor, segEnd]);
+        cursor = g.offset + g.half;
+      });
+      if (ROOM_HALF - cursor > 0.05) segments.push([cursor, ROOM_HALF]);
+      return segments;
+    }
+
+    function buildWallWithGaps(wallId, doorsOnWall) {
+      const def = WALL_DEFS[wallId];
+      const dw = DOOR_WIDTH / 2;
+      const gaps = doorsOnWall
+        .map((d) => ({ offset: d.offset, half: dw }))
+        .sort((a, b) => a.offset - b.offset);
+
+      let cursor = -ROOM_HALF;
+      const segments = [];
+      gaps.forEach((g) => {
+        const segEnd = g.offset - g.half;
+        if (segEnd - cursor > 0.05) segments.push([cursor, segEnd]);
+        cursor = g.offset + g.half;
+      });
+      if (ROOM_HALF - cursor > 0.05) segments.push([cursor, ROOM_HALF]);
+
+      segments.forEach(([a, b]) => {
+        const length = b - a;
+        const center = (a + b) / 2;
+        let mesh;
+        if (def.tangentAxis === "x") {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(length, WALL_HEIGHT, WALL_THICKNESS), wallMat);
+          mesh.position.set(center, WALL_HEIGHT / 2, def.fixedValue);
+        } else {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(WALL_THICKNESS, WALL_HEIGHT, length), wallMat);
+          mesh.position.set(def.fixedValue, WALL_HEIGHT / 2, center);
+        }
+        roomGroup.add(mesh);
+      });
+    }
+
+    function makeDoorPanelMaterial() {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x6b3a49,
+        roughness: 0.6,
+        metalness: 0.1,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+      });
+      mat.userData.disposable = true;
+      return mat;
+    }
+
+    function applyDoorLockVisual(record) {
+      if (record.locked) {
+        record.panelMesh.material.color.set(0x6b3a49); // dim rose — locked
+        record.panelMesh.material.emissive.set(0x000000);
+        record.panelMesh.material.emissiveIntensity = 0;
+      } else {
+        record.panelMesh.material.color.set(0xffe4a8); // warm glow — unlocked
+        record.panelMesh.material.emissive.set(0xffb84d);
+        record.panelMesh.material.emissiveIntensity = 0.55;
+      }
+    }
+
+    function buildDoorVisual(wallId, door, offset, connectionId, locked) {
+      const def = WALL_DEFS[wallId];
+      const anchor = anchorFor(wallId, offset);
+
+      const frameGeo =
+        def.tangentAxis === "x"
+          ? new THREE.BoxGeometry(DOOR_WIDTH, DOOR_HEIGHT, WALL_THICKNESS * 1.15)
+          : new THREE.BoxGeometry(WALL_THICKNESS * 1.15, DOOR_HEIGHT, DOOR_WIDTH);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+      roomGroup.add(frameMesh);
+
+      const panelMat = makeDoorPanelMaterial();
+      const panelGeo =
+        def.tangentAxis === "x"
+          ? new THREE.BoxGeometry(DOOR_WIDTH - 0.18, DOOR_HEIGHT - 0.18, WALL_THICKNESS * 0.6)
+          : new THREE.BoxGeometry(WALL_THICKNESS * 0.6, DOOR_HEIGHT - 0.18, DOOR_WIDTH - 0.18);
+      const panelMesh = new THREE.Mesh(panelGeo, panelMat);
+      panelMesh.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+      roomGroup.add(panelMesh);
+
+      const record = {
+        wallId,
+        offset,
+        anchor,
+        target: door.target,
+        label: door.label,
+        question: door.question,
+        connectionId,
+        locked,
+        gapHalfWidth: DOOR_WIDTH / 2,
+        normal: def.normal,
+        panelMesh,
+        frameMesh,
+        cooldownUntil: 0,
+      };
+      applyDoorLockVisual(record);
+      return record;
+    }
+
+    // ---- Milestone 4: wall-mounted photo frames ----
+
+    function makePhotoFrameMaterials() {
+      const frameBorderMat = new THREE.MeshStandardMaterial({
+        color: 0xd4a84b, // brass, same family as door frames
+        roughness: 0.45,
+        metalness: 0.55,
+      });
+      frameBorderMat.userData.disposable = true;
+      const photoMat = new THREE.MeshBasicMaterial({
+        color: 0x2a1f3a, // dim placeholder tone until the image loads
+      });
+      photoMat.userData.disposable = true;
+      return { frameBorderMat, photoMat };
+    }
+
+    // Draws a small "photo unavailable" canvas texture so a missing/failed
+    // image never shows up as a browser broken-image icon.
+    function makeMissingPhotoTexture(caption) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#241536";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#d4a84b";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 8]);
+      ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+      ctx.fillStyle = "#d4a84b";
+      ctx.textAlign = "center";
+      ctx.font = "16px monospace";
+      ctx.fillText("PHOTO NOT", canvas.width / 2, canvas.height / 2 - 12);
+      ctx.fillText("AVAILABLE YET", canvas.width / 2, canvas.height / 2 + 12);
+      if (caption) {
+        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "#f4efe6";
+        const trimmed = caption.length > 28 ? caption.slice(0, 26) + "…" : caption;
+        ctx.fillText(trimmed, canvas.width / 2, canvas.height / 2 + 40);
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      return texture;
+    }
+
+    // Loads just enough of a photo to know its natural aspect ratio
+    // *before* the layout below decides where anything goes. This is the
+    // key fix for the Milestone 4 overlap bug: the old version positioned
+    // every frame using a placeholder square size, then resized it after
+    // the image finished loading — so a wide or tall photo could grow
+    // past the space it had been given and intersect a neighboring frame
+    // or a doorway. Deciding the real size first means every position
+    // below is already correct and never needs to move.
+    // Resolves even on error/timeout (never rejects) so one bad photo can
+    // never stall — or crash — the room.
+    function loadPhotoAspect(photo) {
+      return new Promise((resolve) => {
+        const thumbSrc = photo.thumb || photo.src;
+        if (!thumbSrc) {
+          resolve({ aspect: 1, failed: true, img: null });
+          return;
+        }
+        const img = new Image();
+        img.decoding = "async";
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+        img.onload = () => {
+          const nw = img.naturalWidth || 1;
+          const nh = img.naturalHeight || 1;
+          finish({ aspect: nw / nh, failed: false, img });
+        };
+        img.onerror = () => finish({ aspect: 1, failed: true, img: null });
+        setTimeout(() => finish({ aspect: 1, failed: true, img: null }), PHOTO_LOAD_TIMEOUT_MS);
+        img.src = thumbSrc;
+      });
+    }
+
+    // Converts a natural aspect ratio into a frame footprint bounded by
+    // PHOTO_MAX_DIM / PHOTO_MIN_DIM — same idea as before, just computed
+    // ahead of layout instead of after.
+    function frameSizeForAspect(aspect) {
+      const a = aspect > 0 ? aspect : 1;
+      let w, h;
+      if (a >= 1) {
+        w = PHOTO_MAX_DIM;
+        h = Math.max(PHOTO_MIN_DIM, PHOTO_MAX_DIM / a);
+      } else {
+        h = PHOTO_MAX_DIM;
+        w = Math.max(PHOTO_MIN_DIM, PHOTO_MAX_DIM * a);
+      }
+      return { w, h };
+    }
+
+    // If a frame is wider than the biggest space actually available on
+    // its wall, shrink it (preserving aspect ratio, never below
+    // PHOTO_MIN_DIM) instead of letting it overflow into a door or a
+    // neighboring frame.
+    function shrinkItemToFit(item, maxUsableLen) {
+      const footprint = item.w + FRAME_BORDER_PAD;
+      if (maxUsableLen <= 0 || footprint <= maxUsableLen) return item;
+      const targetW = Math.max(PHOTO_MIN_DIM, maxUsableLen - FRAME_BORDER_PAD);
+      const scale = targetW / item.w;
+      return {
+        ...item,
+        w: Math.max(PHOTO_MIN_DIM, item.w * scale),
+        h: Math.max(PHOTO_MIN_DIM, item.h * scale),
+      };
+    }
+
+    // Removes the footprint (plus minimum spacing) of one already-placed
+    // frame from a list of free segments, so later placements — automatic
+    // or manual — never land on top of it.
+    function subtractSpanFromSegments(segments, offset, frameW) {
+      const half = (frameW + FRAME_BORDER_PAD) / 2 + PHOTO_MIN_SPACING;
+      const lo = offset - half;
+      const hi = offset + half;
+      const result = [];
+      segments.forEach(([a, b]) => {
+        if (hi <= a || lo >= b) {
+          result.push([a, b]);
+          return;
+        }
+        if (lo > a) result.push([a, lo]);
+        if (hi < b) result.push([hi, b]);
+      });
+      return result;
+    }
+
+    // Greedily fills a wall's free (door-free) segments with items in
+    // order, always keeping every frame's full physical footprint
+    // (image + brass border) within PHOTO_WALL_MARGIN of a segment's ends
+    // — which is exactly what keeps it off doorways and out of corners —
+    // and at least PHOTO_MIN_SPACING away from its neighbors. Items that
+    // don't fit anywhere are returned as leftovers rather than forced in.
+    function packSegments(segments, items) {
+      const placed = [];
+      const remaining = items.slice();
+      segments.forEach((seg) => {
+        if (remaining.length === 0) return;
+        const usableStart = seg[0] + PHOTO_WALL_MARGIN;
+        const usableEnd = seg[1] - PHOTO_WALL_MARGIN;
+        const usableLen = usableEnd - usableStart;
+        if (usableLen <= 0) return;
+
+        const take = [];
+        let used = 0;
+        for (const item of remaining) {
+          const fw = item.w + FRAME_BORDER_PAD;
+          const need = take.length === 0 ? fw : PHOTO_MIN_SPACING + fw;
+          if (used + need > usableLen) break;
+          used += need;
+          take.push(item);
+        }
+        if (take.length === 0) return;
+
+        remaining.splice(0, take.length);
+
+        // Center the whole placed group in the segment, then lay items
+        // out edge-to-edge with PHOTO_MIN_SPACING between them, using
+        // each item's *real* footprint rather than an equal-fraction guess.
+        let cursor = usableStart + (usableLen - used) / 2;
+        take.forEach((item) => {
+          const fw = item.w + FRAME_BORDER_PAD;
+          placed.push({ item, offset: cursor + fw / 2 });
+          cursor += fw + PHOTO_MIN_SPACING;
+        });
+      });
+      return { placed, leftover: remaining };
+    }
+
+    // Checks a manual `photo.position = { wall, offset }` override against
+    // the room's actual geometry: it must stay within the wall (clear of
+    // corners) and must not overlap any doorway on that wall. Invalid
+    // overrides are rejected (never crash, never place through a wall) so
+    // the caller can fall back to automatic placement instead.
+    function validateManualPhotoPosition(wallId, offset, frameW) {
+      const def = WALL_DEFS[wallId];
+      if (!def) return { ok: false, reason: `unknown wall id "${wallId}"` };
+      if (typeof offset !== "number" || Number.isNaN(offset)) {
+        return { ok: false, reason: "offset must be a number" };
+      }
+      const footprintHalf = (frameW + FRAME_BORDER_PAD) / 2;
+      if (
+        offset - footprintHalf < -ROOM_HALF + PHOTO_WALL_MARGIN ||
+        offset + footprintHalf > ROOM_HALF - PHOTO_WALL_MARGIN
+      ) {
+        return { ok: false, reason: "too close to a corner / past the wall's edge" };
+      }
+      const collides = doorRecords.some(
+        (r) =>
+          r.wallId === wallId &&
+          Math.abs(offset - r.offset) < footprintHalf + r.gapHalfWidth + PHOTO_WALL_MARGIN
+      );
+      if (collides) return { ok: false, reason: "overlaps a doorway" };
+      return { ok: true };
+    }
+
+    function buildPhotoFrameMesh(wallId, offset, photo, frameW, frameH, preloaded) {
+      const def = WALL_DEFS[wallId];
+      const anchor = anchorFor(wallId, offset);
+      const normal = def.normal;
+
+      const { frameBorderMat, photoMat } = makePhotoFrameMaterials();
+      const rotY = Math.atan2(normal.x, normal.z);
+
+      const borderMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(frameW + FRAME_BORDER_PAD, frameH + FRAME_BORDER_PAD, 0.05),
+        frameBorderMat
+      );
+      const photoMesh = new THREE.Mesh(new THREE.PlaneGeometry(frameW, frameH), photoMat);
+
+      [borderMesh, photoMesh].forEach((mesh) => {
+        mesh.rotation.y = rotY;
+      });
+      borderMesh.position.set(
+        anchor.x + normal.x * (WALL_THICKNESS / 2 + 0.03),
+        PHOTO_HEIGHT,
+        anchor.z + normal.z * (WALL_THICKNESS / 2 + 0.03)
+      );
+      photoMesh.position.set(
+        anchor.x + normal.x * (WALL_THICKNESS / 2 + 0.07),
+        PHOTO_HEIGHT,
+        anchor.z + normal.z * (WALL_THICKNESS / 2 + 0.07)
+      );
+
+      roomGroup.add(borderMesh);
+      roomGroup.add(photoMesh);
+
+      const record = { wallId, offset, anchor, normal, photo, borderMesh, photoMesh, frameW, frameH };
+
+      // The image (or the missing-photo fallback) was already resolved
+      // during layout — see loadPhotoAspect — so this just applies the
+      // texture to the already-correctly-sized frame. No resize needed.
+      if (preloaded && !preloaded.failed && preloaded.img) {
+        const texture = new THREE.Texture(preloaded.img);
+        texture.needsUpdate = true;
+        photoMat.map = texture;
+        photoMat.color.set(0xffffff);
+        photoMat.needsUpdate = true;
+      } else {
+        const texture = makeMissingPhotoTexture(photo.caption);
+        photoMat.map = texture;
+        photoMat.color.set(0xffffff);
+        photoMat.needsUpdate = true;
+      }
+
+      return record;
+    }
+
+    // Builds every wall-mounted photo frame for a room. Returns a Promise
+    // (each photo's natural size must be known before any position can be
+    // decided — see loadPhotoAspect above) resolving to the same kind of
+    // frame-record array the rest of the engine already expects.
+    //
+    // Layout order:
+    //   1. Preload every photo's aspect ratio and compute its frame size.
+    //   2. Split off any photo with a valid `photo.position = { wall, offset }`
+    //      manual override; invalid overrides fall back to automatic layout.
+    //   3. Round-robin the rest across the four walls (same distribution
+    //      as before), then pack each wall's door-free segments with
+    //      packSegments — which guarantees real footprints, minimum
+    //      spacing, and containment within PHOTO_WALL_MARGIN of every
+    //      door/corner.
+    //   4. Anything that still doesn't fit gets a second pass across
+    //      whichever walls have leftover room; anything that *still*
+    //      doesn't fit is skipped with a console warning rather than
+    //      overlapping something.
+    async function buildPhotoFrames(roomId, roomCfg, generation) {
+      const photos = (roomCfg.photos || []).slice();
+      if (photos.length === 0) return [];
+
+      // Room 1 is explicitly chronological, sorted by CONFIG's year
+      // field (not filename/array order). Numeric-aware so "2003" sorts
+      // before "2011" etc; falls back gracefully on odd/placeholder values.
+      if (roomId === "room1") {
+        photos.sort((a, b) =>
+          String(a.year || "").localeCompare(String(b.year || ""), undefined, { numeric: true })
+        );
+      }
+
+      const loaded = await Promise.all(photos.map((photo) => loadPhotoAspect(photo)));
+      if (generation !== roomGeneration) return []; // room changed while images were loading
+
+      const items = photos.map((photo, i) => {
+        const { w, h } = frameSizeForAspect(loaded[i].aspect);
+        return { photo, w, h, preloaded: loaded[i] };
+      });
+
+      // ---- split manual overrides out from the auto-layout queue ----
+      const manual = [];
+      const autoQueue = [];
+      items.forEach((item) => {
+        const pos = item.photo.position;
+        if (pos && typeof pos === "object" && pos.wall) {
+          const validation = validateManualPhotoPosition(pos.wall, pos.offset, item.w);
+          if (validation.ok) {
+            manual.push({ ...item, wallId: pos.wall, offset: pos.offset });
+            return;
+          }
+          console.warn(
+            `Museum: manual position for photo "${item.photo.caption || item.photo.src || "(untitled)"}" ` +
+              `is invalid (${validation.reason}) — using automatic placement instead.`
+          );
+        }
+        autoQueue.push(item);
+      });
+
+      const perWall = { north: [], east: [], south: [], west: [] };
+      autoQueue.forEach((item, i) => perWall[WALL_ORDER[i % 4]].push(item));
+
+      const placedRecords = []; // { wallId, offset, item }
+      let overflow = [];
+
+      WALL_ORDER.forEach((wallId) => {
+        const manualOnWall = manual.filter((m) => m.wallId === wallId);
+
+        let segments = computeFreeWallSegments(wallId);
+        manualOnWall.forEach((m) => {
+          segments = subtractSpanFromSegments(segments, m.offset, m.w);
+        });
+
+        const maxUsableLen = segments.reduce(
+          (best, seg) => Math.max(best, seg[1] - seg[0] - 2 * PHOTO_WALL_MARGIN),
+          0
+        );
+        const sizedAutoOnWall = perWall[wallId].map((item) => shrinkItemToFit(item, maxUsableLen));
+
+        const { placed, leftover } = packSegments(segments, sizedAutoOnWall);
+        placed.forEach((p) => placedRecords.push({ wallId, offset: p.offset, item: p.item }));
+        overflow.push(...leftover);
+
+        manualOnWall.forEach((m) => placedRecords.push({ wallId, offset: m.offset, item: m }));
+      });
+
+      // Second pass: give any photo that didn't fit on its assigned wall
+      // a chance on whichever wall still has slack, accounting for
+      // everything placed in the pass above.
+      if (overflow.length > 0) {
+        const stillOverflow = [];
+        let toPlace = overflow;
+        overflow = [];
+        WALL_ORDER.forEach((wallId) => {
+          if (toPlace.length === 0) return;
+          let segments = computeFreeWallSegments(wallId);
+          placedRecords
+            .filter((r) => r.wallId === wallId)
+            .forEach((r) => {
+              segments = subtractSpanFromSegments(segments, r.offset, r.item.w);
+            });
+          const maxUsableLen = segments.reduce(
+            (best, seg) => Math.max(best, seg[1] - seg[0] - 2 * PHOTO_WALL_MARGIN),
+            0
+          );
+          const sized = toPlace.map((item) => shrinkItemToFit(item, maxUsableLen));
+          const { placed, leftover } = packSegments(segments, sized);
+          placed.forEach((p) => placedRecords.push({ wallId, offset: p.offset, item: p.item }));
+          toPlace = leftover;
+        });
+        stillOverflow.push(...toPlace);
+        if (stillOverflow.length > 0) {
+          console.warn(
+            `Museum: ${stillOverflow.length} photo(s) in room "${roomId}" didn't fit on any wall ` +
+              `and were skipped rather than risk overlapping a door or another frame. ` +
+              `Consider fewer photos in this room, or add manual photo.position overrides.`
+          );
+        }
+      }
+
+      if (generation !== roomGeneration) return []; // room changed while this ran
+
+      return placedRecords.map((r) =>
+        buildPhotoFrameMesh(r.wallId, r.offset, r.item.photo, r.item.w, r.item.h, r.item.preloaded)
+      );
+    }
+
+    function buildRoomShell(roomId) {
+      clearRoomGroup();
+      const generation = roomGeneration; // captured after clearRoomGroup's bump
+      currentRoomId = roomId;
+      const roomCfg = CONFIG.rooms[roomId];
+      if (!roomCfg) {
+        console.error(`Museum: no CONFIG.rooms entry for "${roomId}"`);
+        doorRecords = [];
+        photoRecords = [];
+        return;
+      }
+
+      const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      roomGroup.add(floorMesh);
+
+      const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), ceilingMat);
+      ceilingMesh.rotation.x = Math.PI / 2;
+      ceilingMesh.position.y = WALL_HEIGHT;
+      roomGroup.add(ceilingMesh);
+
+      const doors = roomCfg.doors || [];
+      const doorsByWall = { north: [], east: [], south: [], west: [] };
+      doors.forEach((d, i) => doorsByWall[WALL_ORDER[i % 4]].push(d));
+
+      const newDoorRecords = [];
+      WALL_ORDER.forEach((wallId) => {
+        const doorsOnWall = doorsByWall[wallId];
+        const offsets = computeOffsets(doorsOnWall.length);
+        const doorsWithOffsets = doorsOnWall.map((d, i) => ({ ...d, offset: offsets[i] }));
+        buildWallWithGaps(wallId, doorsWithOffsets);
+        doorsWithOffsets.forEach((d) => {
+          const connectionId = connectionIdFor(roomId, d.target);
+          const locked = !unlockedConnections.has(connectionId);
+          newDoorRecords.push(buildDoorVisual(wallId, d, d.offset, connectionId, locked));
+        });
+      });
+      doorRecords = newDoorRecords;
+
+      // Photo frames are placed after doors so their wall-segment
+      // placement can see (and avoid) the door gaps just built.
+      // buildPhotoFrames is async (it preloads every photo's real aspect
+      // ratio before deciding where anything goes — see its comment for
+      // why), so photoRecords starts empty and is filled in once layout
+      // resolves. The `generation` check discards a result that finishes
+      // after the player has already left this room.
+      photoRecords = [];
+      buildPhotoFrames(roomId, roomCfg, generation).then((records) => {
+        if (generation !== roomGeneration) return;
+        photoRecords = records;
+      });
+
+      if (roomIndicatorEl) {
+        roomIndicatorEl.textContent = `Exhibit ${roomCfg.exhibitNo} — ${roomCfg.title}`;
+      }
+    }
+
+    // ---- Milestone 3: door interaction — proximity, questions,
+    // unlocking, and room-to-room transitions ----
+    const INTERACT_DISTANCE = 2.1;   // how close counts as "near" a door
+    const DOOR_COOLDOWN_MS = 1300;   // pause before a closed/skipped door can auto-reopen
+
+    let activeDoorRecord = null; // door currently shown in the question overlay
+    let nearDoor = null;         // door currently in proximity range (for prompt + interact)
+    let nearPhoto = null;        // photo frame currently in proximity range
+
+    function isDoorOverlayOpen() {
+      return !doorOverlayEl.classList.contains("hidden");
+    }
+
+    function isPhotoOverlayOpen() {
+      return !photoOverlayEl.classList.contains("hidden");
+    }
+
+    function isAnyOverlayOpen() {
+      return isDoorOverlayOpen() || isPhotoOverlayOpen();
+    }
+
+    function findDoorAtWall(wallId, tangentCoord) {
+      return doorRecords.find(
+        (r) => r.wallId === wallId && Math.abs(tangentCoord - r.offset) <= r.gapHalfWidth
+      );
+    }
+
+    function openDoorOverlay(record) {
+      if (!record || record.locked === false || isPhotoOverlayOpen()) return;
+      activeDoorRecord = record;
+      const q = record.question || {};
+      doorOverlayLabelEl.textContent = record.label || "Locked Door";
+      doorOverlayPromptEl.textContent = q.prompt || "Answer to unlock this door.";
+      doorOverlayInputEl.value = "";
+      doorOverlayFeedbackEl.textContent = "";
+      doorOverlayFeedbackEl.classList.remove("success");
+      doorOverlayHintEl.textContent = "";
+      doorOverlayHintEl.classList.add("hidden");
+      doorOverlaySkipEl.classList.add("hidden");
+      doorOverlayEl.classList.remove("hidden");
+      if (doorPromptEl) doorPromptEl.classList.remove("visible");
+      // reset per-visit key state so a stray "e" doesn't leak into movement
+      keys.forward = keys.backward = keys.left = keys.right = false;
+      setTimeout(() => doorOverlayInputEl.focus(), 30);
+    }
+
+    function closeDoorOverlay() {
+      if (activeDoorRecord) {
+        activeDoorRecord.cooldownUntil = performance.now() + DOOR_COOLDOWN_MS;
+      }
+      activeDoorRecord = null;
+      doorOverlayEl.classList.add("hidden");
+    }
+
+    function unlockConnection(record) {
+      unlockedConnections.add(record.connectionId);
+      saveUnlockedConnections();
+      record.locked = false;
+      applyDoorLockVisual(record);
+    }
+
+    const WRONG_ANSWER_NUDGES = [
+      "Not quite — give it another go?",
+      "Close, but not it. One more try?",
+      "Still not it — take a guess, it's okay!",
+    ];
+
+    function submitDoorAnswer() {
+      const record = activeDoorRecord;
+      if (!record) return;
+      const q = record.question || {};
+      const raw = doorOverlayInputEl.value || "";
+      const normalized = raw.trim().toLowerCase();
+
+      if (!normalized) {
+        doorOverlayFeedbackEl.classList.remove("success");
+        doorOverlayFeedbackEl.textContent = "Type an answer first — even a guess!";
+        return;
+      }
+
+      const answers = (q.answers || []).map((a) => String(a).trim().toLowerCase());
+      const isCorrect = answers.length > 0 && answers.includes(normalized);
+
+      if (isCorrect) {
+        unlockConnection(record);
+        doorOverlayFeedbackEl.classList.add("success");
+        doorOverlayFeedbackEl.textContent = "Correct — the door opens…";
+        doorOverlaySkipEl.classList.add("hidden");
+        activeDoorRecord = null; // unlocked: no cooldown needed
+        setTimeout(() => doorOverlayEl.classList.add("hidden"), 650);
+        return;
+      }
+
+      record.attempts = (record.attempts || 0) + 1;
+      doorOverlayFeedbackEl.classList.remove("success");
+      doorOverlayFeedbackEl.textContent =
+        WRONG_ANSWER_NUDGES[Math.min(record.attempts - 1, WRONG_ANSWER_NUDGES.length - 1)];
+
+      if (record.attempts >= 2 && q.hint) {
+        doorOverlayHintEl.textContent = `Hint: ${q.hint}`;
+        doorOverlayHintEl.classList.remove("hidden");
+      }
+      if (record.attempts >= 3) {
+        doorOverlaySkipEl.classList.remove("hidden");
+      }
+      doorOverlayInputEl.select();
+    }
+
+    doorOverlaySubmitEl.addEventListener("click", submitDoorAnswer);
+    doorOverlayInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitDoorAnswer();
+      }
+    });
+    doorOverlaySkipEl.addEventListener("click", closeDoorOverlay);
+    doorOverlayCloseEl.addEventListener("click", closeDoorOverlay);
+
+    // ---- Milestone 4: photo lightbox ----
+    function openPhotoLightbox(record) {
+      if (!record || isDoorOverlayOpen()) return;
+      const photo = record.photo || {};
+      photoOverlayYearEl.textContent = photo.year || "";
+      photoOverlayCaptionEl.textContent = photo.caption || "";
+      photoOverlayNoteEl.textContent = photo.note || "";
+      // Lazy-load: the full-size <img> only ever gets a src when the
+      // lightbox is actually opened. Uses a `full` field if the photo
+      // supplies one (higher-res than the wall thumbnail), else falls
+      // back to the same src used on the wall.
+      photoOverlayImageEl.src = photo.full || photo.src || "";
+      photoOverlayImageEl.alt = photo.caption || "Museum photo";
+      photoOverlayImageEl.onerror = () => {
+        photoOverlayImageEl.removeAttribute("src");
+        photoOverlayImageEl.alt = "Photo not available yet";
+      };
+      photoOverlayEl.classList.remove("hidden");
+      if (doorPromptEl) doorPromptEl.classList.remove("visible");
+      keys.forward = keys.backward = keys.left = keys.right = false;
+    }
+
+    function closePhotoLightbox() {
+      photoOverlayEl.classList.add("hidden");
+      photoOverlayImageEl.removeAttribute("src");
+    }
+
+    photoOverlayCloseEl.addEventListener("click", closePhotoLightbox);
+    photoOverlayBackdropEl.addEventListener("click", closePhotoLightbox);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isDoorOverlayOpen()) closeDoorOverlay();
+      else if (e.key === "Escape" && isPhotoOverlayOpen()) closePhotoLightbox();
+    });
+
+    function attemptOpenLockedDoor(record) {
+      if (!record || record.locked === false) return;
+      if (isAnyOverlayOpen()) return;
+      const now = performance.now();
+      if (now < (record.cooldownUntil || 0)) return;
+      openDoorOverlay(record);
+    }
+
+    function updateInteractPrompt() {
+      if (!doorPromptEl) return;
+      if (isAnyOverlayOpen()) {
+        doorPromptEl.classList.remove("visible");
+        nearDoor = null;
+        nearPhoto = null;
+        return;
+      }
+
+      let closestDoor = null;
+      let closestDoorDist = INTERACT_DISTANCE;
+      doorRecords.forEach((r) => {
+        const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+        if (dist < closestDoorDist) {
+          closestDoorDist = dist;
+          closestDoor = r;
+        }
+      });
+
+      let closestPhoto = null;
+      let closestPhotoDist = PHOTO_INTERACT_DISTANCE;
+      photoRecords.forEach((r) => {
+        const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+        if (dist < closestPhotoDist) {
+          closestPhotoDist = dist;
+          closestPhoto = r;
+        }
+      });
+
+      // If both a door and a photo are in range, whichever is physically
+      // closer wins the single on-screen prompt.
+      if (closestDoor && (!closestPhoto || closestDoorDist <= closestPhotoDist)) {
+        nearDoor = closestDoor;
+        nearPhoto = null;
+        doorPromptEl.textContent = nearDoor.locked
+          ? `${nearDoor.label} — tap / press E to answer`
+          : `${nearDoor.label} — walk through`;
+        doorPromptEl.classList.add("visible");
+      } else if (closestPhoto) {
+        nearDoor = null;
+        nearPhoto = closestPhoto;
+        doorPromptEl.textContent = "Tap to view / press E to inspect";
+        doorPromptEl.classList.add("visible");
+      } else {
+        nearDoor = null;
+        nearPhoto = null;
+        doorPromptEl.classList.remove("visible");
+      }
+    }
+
+    function handleInteract() {
+      if (!entered || isAnyOverlayOpen()) return;
+      if (nearDoor && nearDoor.locked) {
+        attemptOpenLockedDoor(nearDoor);
+      } else if (nearPhoto) {
+        openPhotoLightbox(nearPhoto);
+      }
+    }
+
+    function spawnPlayerEnteringFrom(targetRoomId, fromRoomId) {
+      // Try to arrive just inside the door that leads back to the room
+      // the player came from, facing further into the new room.
+      const record = doorRecords.find((r) => r.target === fromRoomId);
+      const inward = 1.8;
+      if (record) {
+        camera.position.set(
+          record.anchor.x + record.normal.x * inward,
+          EYE_HEIGHT,
+          record.anchor.z + record.normal.z * inward
+        );
+        yaw = Math.atan2(-record.normal.x, -record.normal.z);
+      } else {
+        // No reciprocal door record (e.g. arriving one-way, or a room
+        // whose door layout isn't built yet) — safe default spawn.
+        camera.position.set(0, EYE_HEIGHT, 2);
+        yaw = Math.PI;
+      }
+      pitch = 0;
+    }
+
+    function triggerTransition(record) {
+      const targetId = record.target;
+      if (!CONFIG.rooms[targetId]) {
+        console.error(`Museum: missing target room "${targetId}" for door`, record);
+        return;
+      }
+      const fromRoomId = currentRoomId;
+      buildRoomShell(targetId);
+      spawnPlayerEnteringFrom(targetId, fromRoomId);
+      if (doorPromptEl) doorPromptEl.classList.remove("visible");
+      nearDoor = null;
+    }
+
+    // ---- build the first room now that all door-interaction helpers exist ----
+    buildRoomShell("room1");
+
+    // ---- player start position ----
+    camera.position.set(0, EYE_HEIGHT, 3);
+    camera.rotation.order = "YXZ"; // standard FPS-style rotation order
+    let yaw = 0;
+    let pitch = 0;
+    const PITCH_LIMIT = Math.PI / 2 - 0.05;
+
+    // ---- keyboard movement state (WASD + arrow keys) ----
+    const keys = { forward: false, backward: false, left: false, right: false };
+    const KEY_MAP = {
+      KeyW: "forward", ArrowUp: "forward",
+      KeyS: "backward", ArrowDown: "backward",
+      KeyA: "left", ArrowLeft: "left",
+      KeyD: "right", ArrowRight: "right",
+    };
+
+    window.addEventListener("keydown", (e) => {
+      if (!entered) return;
+      // While an overlay (question or photo lightbox) is open, let the
+      // player type/scroll freely — don't hijack keystrokes as
+      // movement/interact input.
+      if (isAnyOverlayOpen()) return;
+      const dir = KEY_MAP[e.code];
+      if (dir) {
+        keys[dir] = true;
+        e.preventDefault();
+        return;
+      }
+      if (e.code === "KeyE") {
+        handleInteract();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      const dir = KEY_MAP[e.code];
+      if (dir) keys[dir] = false;
+    });
+
+    // ---- look controls: click-and-drag (desktop) / touch-drag (mobile) ----
+    // Deliberately not using the Pointer Lock API: it needs an explicit
+    // permission grant that sandboxed preview iframes can refuse outright,
+    // whereas drag-to-look works everywhere with no permission step.
+    const LOOK_SPEED = 0.0032;
+    let looking = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    function startLook(x, y) {
+      looking = true;
+      lastPointerX = x;
+      lastPointerY = y;
+    }
+    function moveLook(x, y) {
+      if (!looking) return;
+      const dx = x - lastPointerX;
+      const dy = y - lastPointerY;
+      lastPointerX = x;
+      lastPointerY = y;
+      yaw -= dx * LOOK_SPEED;
+      pitch -= dy * LOOK_SPEED;
+      pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+    }
+    function endLook() {
+      looking = false;
+    }
+
+    const canvasEl = renderer.domElement;
+
+    canvasEl.addEventListener("mousedown", (e) => {
+      if (!entered) return;
+      startLook(e.clientX, e.clientY);
+    });
+    window.addEventListener("mousemove", (e) => moveLook(e.clientX, e.clientY));
+    window.addEventListener("mouseup", endLook);
+
+    canvasEl.addEventListener("touchstart", (e) => {
+      if (!entered) return;
+      const t = e.changedTouches[0];
+      startLook(t.clientX, t.clientY);
+    }, { passive: true });
+    canvasEl.addEventListener("touchmove", (e) => {
+      const t = e.changedTouches[0];
+      moveLook(t.clientX, t.clientY);
+    }, { passive: true });
+    canvasEl.addEventListener("touchend", endLook);
+    canvasEl.addEventListener("touchcancel", endLook);
+
+    // ---- virtual joystick (mobile movement) ----
+    const joystick = { x: 0, y: 0, active: false, pointerId: null };
+    const joyBase = document.getElementById("joystick-base");
+    const joyKnob = document.getElementById("joystick-knob");
+    const JOY_RADIUS = 40; // max knob travel in px
+
+    function joyReset() {
+      joystick.x = 0;
+      joystick.y = 0;
+      joystick.active = false;
+      joystick.pointerId = null;
+      joyKnob.style.transform = "translate(0px, 0px)";
+    }
+
+    function joyUpdate(clientX, clientY) {
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > JOY_RADIUS) {
+        dx = (dx / dist) * JOY_RADIUS;
+        dy = (dy / dist) * JOY_RADIUS;
+      }
+      joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+      joystick.x = dx / JOY_RADIUS; // -1 (left) .. 1 (right)
+      joystick.y = dy / JOY_RADIUS; // -1 (up/forward) .. 1 (down/backward)
+    }
+
+    if (joyBase && joyKnob) {
+      joyBase.addEventListener("touchstart", (e) => {
+        if (!entered) return;
+        const t = e.changedTouches[0];
+        joystick.active = true;
+        joystick.pointerId = t.identifier;
+        joyUpdate(t.clientX, t.clientY);
+        e.preventDefault();
+      }, { passive: false });
+
+      joyBase.addEventListener("touchmove", (e) => {
+        if (!joystick.active) return;
+        for (const t of e.changedTouches) {
+          if (t.identifier === joystick.pointerId) joyUpdate(t.clientX, t.clientY);
+        }
+        e.preventDefault();
+      }, { passive: false });
+
+      const joyEnd = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === joystick.pointerId) joyReset();
+        }
+      };
+      joyBase.addEventListener("touchend", joyEnd);
+      joyBase.addEventListener("touchcancel", joyEnd);
+    }
+
+    // ---- interact button: opens the nearby locked door's question
+    // overlay. (Photo / object interaction lands here in a later
+    // milestone, alongside doors.) ----
+    const interactBtn = document.getElementById("interact-btn");
+    if (interactBtn) {
+      interactBtn.addEventListener("click", () => {
+        handleInteract();
+      });
+    }
+
+    // ---- movement update (called every frame) ----
+    const forwardVec = new THREE.Vector3();
+    const rightVec = new THREE.Vector3();
+    const UP_AXIS = new THREE.Vector3(0, 1, 0);
+    const MOVE_SPEED = 3.2; // units per second
+
+    function updateMovement(delta) {
+      let inputX = 0; // strafe: -1 left .. 1 right
+      let inputZ = 0; // -1 forward .. 1 backward
+      if (keys.forward) inputZ -= 1;
+      if (keys.backward) inputZ += 1;
+      if (keys.left) inputX -= 1;
+      if (keys.right) inputX += 1;
+
+      inputX += joystick.x;
+      inputZ += joystick.y;
+
+      const mag = Math.hypot(inputX, inputZ);
+      if (mag < 0.001) return;
+      const clampedMag = Math.min(mag, 1);
+      inputX /= mag;
+      inputZ /= mag;
+
+      forwardVec.set(0, 0, -1).applyAxisAngle(UP_AXIS, yaw);
+      rightVec.set(1, 0, 0).applyAxisAngle(UP_AXIS, yaw);
+
+      const step = MOVE_SPEED * delta * clampedMag;
+      let newX = camera.position.x + (forwardVec.x * -inputZ + rightVec.x * inputX) * step;
+      let newZ = camera.position.z + (forwardVec.z * -inputZ + rightVec.z * inputX) * step;
+
+      // Collision, door-aware: normally the player is clamped to
+      // MOVE_BOUND on every side (never through a wall, never out of the
+      // room). The one exception is standing in an *unlocked* door's gap,
+      // where we let them keep walking past the wall plane; once they've
+      // gone TRANSITION_DEPTH past it, that counts as "through the
+      // doorway" and swaps to the target room. A *locked* door blocks
+      // movement exactly like a wall, but also pops open its question
+      // overlay — this is the "walk into a locked door" behaviour.
+      if (newX > MOVE_BOUND) {
+        const door = findDoorAtWall("east", newZ);
+        if (door && !door.locked) {
+          if (newX - ROOM_HALF >= TRANSITION_DEPTH) {
+            triggerTransition(door);
+            return;
+          }
+        } else {
+          newX = MOVE_BOUND;
+          if (door) attemptOpenLockedDoor(door);
+        }
+      } else if (newX < -MOVE_BOUND) {
+        const door = findDoorAtWall("west", newZ);
+        if (door && !door.locked) {
+          if (-ROOM_HALF - newX >= TRANSITION_DEPTH) {
+            triggerTransition(door);
+            return;
+          }
+        } else {
+          newX = -MOVE_BOUND;
+          if (door) attemptOpenLockedDoor(door);
+        }
+      }
+
+      if (newZ > MOVE_BOUND) {
+        const door = findDoorAtWall("south", newX);
+        if (door && !door.locked) {
+          if (newZ - ROOM_HALF >= TRANSITION_DEPTH) {
+            triggerTransition(door);
+            return;
+          }
+        } else {
+          newZ = MOVE_BOUND;
+          if (door) attemptOpenLockedDoor(door);
+        }
+      } else if (newZ < -MOVE_BOUND) {
+        const door = findDoorAtWall("north", newX);
+        if (door && !door.locked) {
+          if (-ROOM_HALF - newZ >= TRANSITION_DEPTH) {
+            triggerTransition(door);
+            return;
+          }
+        } else {
+          newZ = -MOVE_BOUND;
+          if (door) attemptOpenLockedDoor(door);
+        }
+      }
+
+      camera.position.x = newX;
+      camera.position.z = newZ;
+    }
+
+    // ---- resize handling ----
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---- render loop ----
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.1); // guard against tab-switch spikes
+
+      if (entered && !isAnyOverlayOpen()) {
+        updateMovement(delta);
+        camera.rotation.y = yaw;
+        camera.rotation.x = pitch;
+      }
+      if (entered) updateInteractPrompt();
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    if (statusEl) statusEl.textContent = "Engine — Milestone 4: photo frames + lightbox ready";
+  } catch (err) {
+    // The start screen and Enter button still work even if this fails —
+    // only the 3D scene underneath is affected.
+    console.error("Museum engine failed to initialize:", err);
+    if (statusEl) statusEl.textContent = "Engine — scene failed to load (see console)";
+  }
+</script>
+
+</body>
+</html>

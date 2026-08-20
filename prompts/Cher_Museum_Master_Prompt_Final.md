@@ -1,0 +1,606 @@
+# MASTER BUILD PROMPT — "Cheri's Museum"
+
+> A birthday surprise built as **one interactive, walk-through Museum web application**.
+> The Museum is the only thing you are building here. The final room contains four supplied
+> external websites as wall-sized exhibits, including a separate Wall of Voices site.
+>
+> This document is the single source of truth. Give **Part A** to the coding assistant building
+> the Museum. Part B is the deployment plan and Part C is the turn-by-turn build plan for the user.
+
+---
+
+## 0. READ THIS FIRST (context for whoever is building)
+
+**What you're building:** a small browser game / interactive museum of Cheri's life, people,
+interests, and memories.
+
+The player physically walks through the museum rather than clicking a normal web gallery.
+The Museum is a **non-linear room graph**. She can move between connected rooms, return to
+previous rooms, inspect photos and objects, and answer personal questions at doors to unlock
+new rooms.
+
+### Room graph
+
+```text
+1 ↔ 2
+1 ↔ 3
+1 ↔ 5
+2 ↔ 4
+2 ↔ 5
+3 ↔ 5
+4 ↔ 5
+5 → 6
+```
+
+Room 6 is the ending. The connections are data-driven and must not be hardcoded into movement
+logic.
+
+### Rooms
+
+1. **Cheri — Growing Up**
+   Childhood photos arranged chronologically from baby → child → school/inter → college → now.
+   This room may contain substantially more photos than the others.
+
+2. **Cheri + Family**
+   Photos of Cher with family. Normally around 15–30 photos, depending on what is available.
+
+3. **Cheri + Friends**
+   Photos of Cher with friends. Normally around 15–30 photos.
+
+4. **The Cheri Archive**
+   An interactive room about things Cheri likes. It is **not** a normal photo gallery.
+   Current content:
+   - YouTube playlist displayed as a museum board/exhibit
+   - Novels/comics: *Omniscient Reader's Viewpoint (ORV)*, *Little Mushroom* (An Zhe),
+     *Heaven Official's Blessing*
+   - Games: *DragonVale*, *Travel Town*
+   - *One Piece*, especially Sanji and Zoro
+   - Flowers such as roses and lilies
+   Use physical-looking museum objects, shelves, display cases, posters, a game corner, flower
+   displays, etc. The goal is to make her feel **noticed and understood**, not to show a plain
+   list of interests. More items may be added later through CONFIG.
+
+5. **Our Videos**
+   Videos/memories involving the user, Cher, and/or the trio. Videos must load only when opened,
+   not all at once.
+
+6. **The Final Room / Wall Exhibits**
+   Four walls, each containing one supplied external public website URL. One of these is the
+   separate Wall of Voices website. **Do not build, modify, host, or manage any of these external
+   websites.** The Museum only displays the supplied URLs as wall-sized exhibits. If an external
+   site refuses iframe embedding, show a beautiful fallback exhibit with an "Open Exhibit" button
+   that opens the supplied URL in a new tab. Never try to bypass iframe/CSP/X-Frame-Options rules.
+
+### Important scope boundary
+
+The Wall of Voices and the other three external websites are **not part of this build**. They are
+already external/public sites that the user will provide as URLs. Your job is only to place them
+inside Room 6 as large wall exhibits.
+
+### Skill/development assumption
+
+The builder works turn-by-turn. Every milestone should produce something that runs before moving
+to the next. Do not build the entire project at once. Do not invent personal memories, names,
+relationships, captions, questions, answers, photos, videos, or events. If personal assets or
+URLs have not been supplied yet, use clearly labelled placeholders. The user will add the real
+photos, videos, playlist URL, questions, captions, and external URLs later without changing the
+underlying game engine.
+
+---
+
+## 0.1 THINGS YOU ([HER NAME]) MUST FILL IN BEFORE HANDING THIS OFF
+
+Replace these everywhere they appear. Collect them gradually; placeholders are fine during early
+milestones.
+
+- `HER NAME` — use **Cheri** throughout the project.
+- `ROOM TITLES` — the six room titles if you want to rename the defaults above.
+- `DOOR QUESTIONS` — one question for each door/connection, with accepted answer(s) and an
+  optional hint. Questions belong to **doors**, not rooms.
+- `PHOTOS` — **do not provide these yet if you do not have them.** Build the complete photo system
+  using clearly labelled placeholders. Real photos will be collected and added later. Normal photo
+  rooms should support approximately 15–30 images; Room 1 may contain many more. Each real photo
+  can later have a caption + optional one-line memory/note. Room 1 photos must have a year/date field
+  so they can be displayed chronologically.
+- `VIDEOS` — **do not provide these yet if you do not have them.** Build the complete video system
+  using placeholder thumbnails/files. Real videos will be collected and added later.
+- `YOUTUBE_PLAYLIST_URL` — Cher's YouTube playlist for the Room 4 playlist board. This can be
+  added later; use a clearly labelled placeholder until the real URL is supplied.
+- `EXTERNAL_WALL_URLS` — four external public website URLs for Room 6, including the Wall of
+  Voices URL. These can be added later; use clearly labelled placeholder wall exhibits until the
+  real URLs are supplied. The Museum does not build those sites.
+- `MUSIC` — optional room music files. Keep this optional; do not require music for the app to
+  function.
+- `FINALE MESSAGE` — the heartfelt birthday message shown in Room 6.
+
+---
+
+# PART A — THE MUSEUM  *(paste this whole part into Claude)*
+
+You are the best frontend engineer and interaction designer. Build a birthday surprise: an
+interactive, walk-through "museum of memories." Follow this spec exactly. Work in the numbered
+build order at the end and confirm each milestone runs before continuing.
+
+## A1. Hard technical constraints
+
+- **One self-contained `index.html` file for the Museum.** All app HTML, CSS, and JavaScript can
+  live inline. Assets such as images/videos/audio may live in folders next to it.
+- **No backend, no database, no login, no npm build step.** The Museum must be deployable as a
+  static web application and must open in Chrome.
+- Use a lightweight first-person / walk-through canvas experience. **Three.js/WebGL is allowed if
+  it is the simplest reliable way to achieve the first-person museum feel.** Keep the scene simple
+  and performance-conscious; do not add heavy 3D assets or effects.
+- Use HTML/DOM overlays for menus, question dialogs, photo viewers, object details, notices, and
+  other UI that is easier to make accessible outside the canvas.
+- **Mobile-first.** It must work well on a phone in Chrome and also on a laptop/desktop in Chrome.
+- Desktop controls: WASD and/or arrow keys for movement; mouse/keyboard interaction where useful.
+- Mobile controls: a visible virtual joystick or compact directional control for movement plus a
+  clear interact button. Keep it usable one-handed in portrait.
+- Respect `prefers-reduced-motion`.
+- Do not require a framework. Keep the implementation understandable and editable by a beginner.
+- Do not rewrite working systems unnecessarily between milestones. Preserve previous functionality
+  and make the smallest necessary changes.
+
+## A2. Design direction — "Museum at midnight"
+
+Do NOT use the generic cream-background/serif/terracotta look. Use this:
+- **Palette:** deep aubergine walls `#1a0f2e`, midnight floor `#0d0a1f`, warm spotlight glow
+  `#ffe4a8`, brass frames/accents `#d4a84b`, soft rose character `#ff8fa3`, off-white text
+  `#f4efe6`.
+- **Feel:** a warm, softly-lit private gallery at night. Each exhibit sits in a pool of warm
+  spotlight; the rest of the room falls into shadow. Intimate, curated, a little magical.
+- **Type:** a characterful display serif for plaques/titles (e.g. Cormorant Garamond), a clean
+  sans for UI (e.g. Inter), and a mono for small `EXHIBIT 01` labels.
+- **Signature element:** warm spotlight pools + a small glowing character/player. Keep everything
+  else quiet and uncluttered.
+
+## A3. The CONFIG object (all personal content lives here — build this first)
+
+Put one clearly labelled `CONFIG` object near the top of the script so personal content can be
+edited in one place. Use a room object keyed by room ID and put **questions on doors**.
+
+Use this shape as the starting point; adapt only where needed while keeping the same idea:
+
+```js
+const CONFIG = {
+  herName: "Cheri",
+
+  rooms: {
+    room1: {
+      exhibitNo: "01",
+      title: "Cheri — Growing Up",
+      type: "photo-gallery",
+      photos: [
+        {
+          src: "photos/room1/cher_baby_01.webp",
+          year: "200X",
+          caption: "Tiny Cher",
+          note: "A little note about this memory."
+        }
+      ],
+      doors: [
+        {
+          target: "room2",
+          label: "Family Archive",
+          question: {
+            prompt: "YOUR QUESTION",
+            answers: ["correct answer"],
+            hint: "OPTIONAL HINT"
+          }
+        },
+        {
+          target: "room3",
+          label: "Friends Archive",
+          question: {
+            prompt: "YOUR QUESTION",
+            answers: ["correct answer"],
+            hint: "OPTIONAL HINT"
+          }
+        },
+        {
+          target: "room5",
+          label: "Our Videos",
+          question: {
+            prompt: "YOUR QUESTION",
+            answers: ["correct answer"],
+            hint: "OPTIONAL HINT"
+          }
+        }
+      ]
+    },
+
+    room2: {
+      exhibitNo: "02",
+      title: "Cheri + Family",
+      type: "photo-gallery",
+      photos: [],
+      doors: [
+        { target: "room1", label: "Back to Growing Up", question: {/*...*/} },
+        { target: "room4", label: "Cheri Archive", question: {/*...*/} },
+        { target: "room5", label: "Our Videos", question: {/*...*/} }
+      ]
+    },
+
+    room3: {
+      exhibitNo: "03",
+      title: "Cheri + Friends",
+      type: "photo-gallery",
+      photos: [],
+      doors: [
+        { target: "room1", label: "Back to Growing Up", question: {/*...*/} },
+        { target: "room5", label: "Our Videos", question: {/*...*/} }
+      ]
+    },
+
+    room4: {
+      exhibitNo: "04",
+      title: "The Cheri Archive",
+      type: "interest-gallery",
+      playlistUrl: "YOUTUBE_PLAYLIST_URL",
+      interests: [
+        { type: "book", title: "Omniscient Reader's Viewpoint (ORV)" },
+        { type: "book", title: "Little Mushroom — An Zhe" },
+        { type: "book", title: "Heaven Official's Blessing" },
+        { type: "game", title: "DragonVale" },
+        { type: "game", title: "Travel Town" },
+        { type: "one-piece", title: "One Piece — Sanji & Zoro" },
+        { type: "flower", title: "Roses" },
+        { type: "flower", title: "Lilies" }
+      ],
+      doors: [
+        { target: "room2", label: "Back to Family Archive", question: {/*...*/} },
+        { target: "room5", label: "Our Videos", question: {/*...*/} }
+      ]
+    },
+
+    room5: {
+      exhibitNo: "05",
+      title: "Our Videos",
+      type: "video-gallery",
+      videos: [
+        {
+          src: "videos/video01.mp4",
+          poster: "videos/thumb01.webp",
+          title: "Video title",
+          note: "Optional caption."
+        }
+      ],
+      doors: [
+        { target: "room1", label: "Growing Up", question: {/*...*/} },
+        { target: "room2", label: "Family Archive", question: {/*...*/} },
+        { target: "room3", label: "Friends Archive", question: {/*...*/} },
+        { target: "room4", label: "Cheri Archive", question: {/*...*/} },
+        { target: "room6", label: "Final Room", question: {/*...*/}, oneWay: true }
+      ]
+    },
+
+    room6: {
+      exhibitNo: "06",
+      title: "The Final Room",
+      type: "external-walls",
+      entryFacingWall: "wallOfVoices",
+      externalWalls: [
+        { id: "wallOfVoices", title: "Wall of Voices", url: "WALL_OF_VOICES_URL", primary: true, position: "opposite-entry" },
+        { id: "wall2", title: "Wall Exhibit 2", url: "EXTERNAL_URL_2" },
+        { id: "wall3", title: "Wall Exhibit 3", url: "EXTERNAL_URL_3" },
+        { id: "wall4", title: "Wall Exhibit 4", url: "EXTERNAL_URL_4" }
+      ]
+    }
+  },
+
+  finale: {
+    title: "For You",
+    message: "FINALE MESSAGE"
+  }
+};
+```
+
+The actual room graph must match exactly:
+
+```text
+1 ↔ 2
+1 ↔ 3
+1 ↔ 5
+2 ↔ 4
+2 ↔ 5
+3 ↔ 5
+4 ↔ 5
+5 → 6
+```
+
+Do not create extra room connections unless the user explicitly adds them.
+
+If an asset or URL is missing, draw a labelled placeholder or fallback — **never crash**.
+
+## A4. Mechanics — exact behaviour
+
+### A4.1 Start screen
+
+Full-screen overlay: museum title, her name, subtitle, one button `Enter`. Nothing runs until
+she clicks/taps Enter. This user gesture may also start optional room music.
+
+### A4.2 Rooms & movement
+
+Each room is a simple walkable first-person museum environment with four walls, floor, ceiling,
+exhibits/frames/objects, and doors. Keep geometry simple so it performs well on mobile.
+
+The player can move smoothly rather than grid-snapped and cannot walk through walls or leave the
+room. Each room should feel spatially different even though the underlying architecture is simple.
+
+Desktop: WASD and/or arrow keys. Mobile: virtual joystick/directional control. Make the camera,
+movement speed, interaction distance, and controls comfortable on a phone.
+
+### A4.3 Museum plaque on entry
+
+When she enters a room, a plaque animates in for about 2.5s then fades: small mono label
+`EXHIBIT 01`, then the room title. It should feel curated, not like a generic game HUD.
+
+### A4.4 Photos on walls
+
+**Adaptive frame requirement:** Personal photos may have any aspect ratio (for example 9:3, 1:1, 3:4, 4:3, 16:9, or unusual dimensions). Never force all photos into one fixed frame shape. Detect each image’s natural dimensions and generate the physical museum frame to fit its aspect ratio. Preserve the complete image without stretching or cropping by default. Frame dimensions must remain within sensible maximum wall-space limits, and mixed portrait, landscape, square, and panoramic frames should be laid out with attractive spacing. The user must not need to manually classify each photo.
+
+
+Normal photo rooms should support approximately **15–30 photos per room**, with Room 1 allowed
+to contain many more.
+
+Photos must be actual wall-mounted exhibits, not a normal grid gallery.
+
+Room 1 is chronological. Sort/display its photos by the explicit `year`/date field from CONFIG.
+Do not rely on filename order.
+
+For performance:
+- use optimized thumbnails for wall displays;
+- lazy-load the full image only when she opens the photo;
+- prefer WebP/AVIF or other appropriately compressed formats;
+- never decode/load every full-resolution photo at once.
+
+When the player is near a frame, show a subtle `Tap to view` / `E to inspect` prompt. Clicking,
+pressing E, or tapping the interact control opens a lightbox containing the full image, caption,
+and note. It can be closed with a button, Esc, or tapping outside.
+
+### A4.5 Doors = questions
+
+Every connection between rooms is represented by a real door. **Each door has its own question**
+from that door's CONFIG entry.
+
+Walking into a locked door or pressing the interact control near it opens a question overlay.
+
+- Correct answer: match any string in `answers`, case-insensitive and trimmed → unlock the door,
+  play a satisfying animation/sound, and allow movement through it.
+- Wrong answer: show a warm playful nudge, never a harsh error.
+- After 2 wrong tries, reveal the hint if one exists.
+- After 3 tries, show a `Skip for now` option so she is never permanently stuck.
+- Once a door is successfully unlocked, persist that progress with `localStorage`.
+- Returning to a previously unlocked door must not require answering again.
+
+The player must be able to backtrack through the bidirectional graph after unlocking a connection.
+The final 5 → 6 connection is one-way as specified.
+
+### A4.6 Room 4 — The Cheri Archive
+
+This room must feel like a curated collection of **things Cheri likes**, not a text list and not
+a standard photo gallery.
+
+Use physical-looking museum objects such as:
+- a bookshelf for ORV, Little Mushroom, and Heaven Official's Blessing;
+- a game corner / display for DragonVale and Travel Town;
+- a One Piece display with Sanji and Zoro references;
+- a flower display for roses and lilies;
+- a large wall-mounted board displaying her supplied YouTube playlist.
+
+Objects may be clicked/tapped for a small exhibit card with a title and short description.
+Use the CONFIG data so more interests can be added later without changing the engine.
+
+For the YouTube playlist, show it as a museum-board exhibit. Prefer lazy-loading the embedded
+playlist only when the player interacts with that board. If embedding is unavailable, provide a
+styled `Open Playlist` button instead.
+
+Do not invent descriptions about why she likes something. Use supplied text or neutral
+placeholders until the user provides wording.
+
+### A4.7 Room 5 — Videos
+
+Use wall-mounted screens / framed video exhibits rather than a plain list.
+
+Show thumbnails/posters first. Load the actual video only when she opens one. Use `preload="none"`
+or equivalent lazy loading and stop/unload the video when the overlay closes where practical.
+
+Support common browser-friendly video formats. Missing videos must show a placeholder rather than
+breaking the room.
+
+### A4.8 Room 6 — External wall exhibits
+
+Room 6 is the final room and contains **exactly four large wall-sized external website exhibits**.
+Each wall displays one supplied external public website URL.
+
+**The Wall of Voices is one of those four walls. It is NOT a separate portal, page, or application
+inside this project.** It is simply the primary/focal external website exhibit in Room 6.
+
+The Wall of Voices wall must be positioned **directly opposite the entrance door**. When the player
+enters Room 6, the initial camera/player orientation must face the Wall of Voices so that it is the
+first and most prominent exhibit she sees. The other three supplied websites occupy the remaining
+three walls.
+
+Do not build, modify, host, or manage any of these external sites.
+
+For each supplied URL:
+- attempt to display the site in a large responsive iframe that visually occupies its wall;
+- do not load all four sites unnecessarily before the player reaches the room;
+- lazy-load an iframe when appropriate;
+- if the external site blocks iframe embedding, gracefully show a museum-style fallback with the
+  exhibit title and an `Open Exhibit` button that opens the original URL in a new tab;
+- never bypass browser security, CSP, X-Frame-Options, or other embedding restrictions.
+
+Room 6 also displays `CONFIG.finale.title` and `CONFIG.finale.message` as the emotional ending
+within the room. There is **no final portal screen and no separate Wall of Voices navigation page**.
+
+### A4.9 Optional room music
+
+If room music is supplied, start it after the user enters the Museum and cross-fade to the current
+room's track when the room changes. Include a small mute/unmute control and track name.
+If no music is supplied, remain silent gracefully.
+
+Do not use the YouTube playlist as background music. It is a Room 4 exhibit.
+
+### A4.10 Mobile
+
+This is **mobile-first**.
+
+On touch devices:
+- show a compact virtual joystick or directional movement control;
+- show a clear interact button;
+- keep controls away from important content;
+- support portrait and landscape where practical;
+- avoid tiny buttons or text;
+- keep overlays scrollable and readable.
+
+The same website must remain comfortable on a laptop/desktop in Chrome.
+
+### A4.11 Persistence
+
+Use `localStorage` for lightweight game state such as:
+- unlocked room connections;
+- visited rooms;
+- optional discovered/inspected exhibits if the user chooses to track them.
+
+Do not store private data or send player state to a server.
+
+### A4.12 Accessibility / quality floor
+
+- Visible keyboard focus on HTML buttons and text inputs.
+- All overlays closable with Esc where applicable.
+- Respect `prefers-reduced-motion` and reduce/disable unnecessary camera effects, particles, and
+  transitions.
+- Good text contrast.
+- Touch targets large enough for mobile.
+- Never crash because an asset, question, answer, or external URL is missing.
+
+## A5. BUILD ORDER (do these as separate turns; confirm each runs before the next)
+
+1. **Skeleton:** CONFIG + start screen + empty walkable canvas/scene. Confirm it opens and Enter
+   hides the start screen.
+2. **Movement:** one simple room, floor/walls, player/camera, desktop controls, mobile movement
+   control, and collision.
+3. **Room graph:** add multiple doors and data-driven room transitions using the exact graph above.
+   Implement per-door question overlays with answer/hint/skip logic.
+4. **Photos:** wall-mounted frames, proximity/interact prompt, optimized thumbnails, lazy-loaded
+   lightbox with caption + note. Build Room 1's chronological ordering.
+5. **Rooms 1–3:** add their actual room structures and content placeholders while preserving the
+   movement/question systems.
+6. **Room 4:** build the Cheri Archive objects, book/game/One Piece/flower displays, and the
+   YouTube playlist board with lazy loading/fallback.
+7. **Room 5:** add video screens, thumbnails, lazy-loaded video playback.
+8. **Room 6:** add the four external wall exhibits, iframe/fallback handling, and the finale
+   message.
+9. **Optional music:** add room music and mute/unmute control if assets are ready.
+10. **Persistence + mobile polish:** localStorage, touch controls, responsive layout, accessibility,
+    reduced motion, and interaction polish.
+11. **Performance/final test:** compress assets, check load times, test every room connection,
+    every question, every photo/video, every external URL, and a complete start-to-finish run on a
+    real phone and laptop Chrome.
+
+## A6. Working rules for the coding assistant
+
+- Do not skip milestones.
+- Do not build future milestones early just because they seem easy.
+- At the end of each milestone, explain how to run/test it and wait for confirmation before moving
+  on.
+- When modifying an existing implementation, preserve working functionality and make the smallest
+  necessary change.
+- Never invent personal content. Use placeholders when information is missing.
+- Keep the Museum usable if some assets are unavailable.
+- Prefer simple, reliable implementations over unnecessary features.
+- Performance on a normal mobile Chrome browser is more important than visual complexity.
+
+## A7. DONE checklist for the Museum
+
+- [ ] Opens in Chrome as a static web application.
+- [ ] Works on a phone first and also on laptop/desktop.
+- [ ] Player can walk naturally through all six rooms.
+- [ ] Room graph exactly matches `1↔2, 1↔3, 1↔5, 2↔4, 2↔5, 3↔5, 4↔5, 5→6`.
+- [ ] Every door uses its own question and can be retried/skipped without hard-blocking.
+- [ ] Unlocked connections persist locally.
+- [ ] Room 1 photos are chronological and optimized.
+- [ ] Normal photo rooms support 15–30+ wall-mounted photos without loading all full-resolution
+      assets at once.
+- [ ] Room 4 feels like a personal Cher collection and contains the supplied interests plus the
+      YouTube playlist board.
+- [ ] Room 5 videos load only when opened.
+- [ ] Room 6 displays the four external website walls or a safe open-in-new-tab fallback when
+      embedding is blocked.
+- [ ] Finale message appears in Room 6.
+- [ ] Missing assets never crash the Museum.
+- [ ] Reduced-motion and basic accessibility requirements work.
+- [ ] Full start → explore → unlock → Room 6 dry run succeeds on both phone and laptop.
+
+---
+
+# PART B — DEPLOYMENT (MUSEUM ONLY)
+
+**The Museum is a static site. The external websites are maintained separately.**
+
+### Museum
+
+- Keep `index.html` next to the asset folders.
+- The easiest deployment is a static host such as Netlify Drop, GitHub Pages, or Vercel static
+  hosting.
+- Make sure all relative photo/video/audio paths in CONFIG remain valid after deployment.
+- If local `file://` testing blocks a browser feature, use a tiny local static server for testing;
+  the deployed version must work over HTTPS.
+
+### Wiring the external websites
+
+1. Collect the four public external website URLs for Room 6.
+2. Put them in `CONFIG.rooms.room6.externalWalls`.
+3. Test each URL in the deployed Museum.
+4. If any URL refuses iframe embedding, confirm the fallback `Open Exhibit` button works.
+5. Do not attempt to bypass embedding restrictions.
+
+### Pre-launch checklist
+
+- [ ] Test the complete Museum on the kind of phone she is likely to use.
+- [ ] Test on laptop Chrome.
+- [ ] All photos load correctly.
+- [ ] Videos load only when opened and stop when closed where practical.
+- [ ] Room questions work and wrong answers never permanently block progress.
+- [ ] All four Room 6 external websites are either embedded or safely openable.
+- [ ] Final message is correct.
+- [ ] Do one complete dry run from Room 1 to Room 6.
+
+---
+
+# PART C — TURN-BY-TURN PLAN
+
+Work in this order and test after each milestone.
+
+### SESSION 1 — Foundation
+
+- Prepare the CONFIG placeholders.
+- Build the start screen.
+- Build one simple first-person room.
+- Get desktop + mobile movement working.
+- Get one door and one question working.
+
+### SESSION 2 — Core museum
+
+- Implement the room graph.
+- Add Room 1 chronological photos.
+- Add Rooms 2 and 3 photo walls.
+- Add Room 4's interactive objects and playlist board.
+
+### SESSION 3 — Finish
+
+- Add Room 5 videos.
+- Add Room 6 external website walls.
+- Add finale message.
+- Add persistence, performance optimizations, mobile polish, accessibility, and final testing.
+
+### Final rule
+
+Protect the shipping date over extra features. If something is difficult, simplify the visual
+complexity before sacrificing reliability, mobile performance, or the complete six-room journey.
+
+---
+
+*Everything she sees should feel like it was collected specifically for her. Keep it warm, personal,
+playable, fast on a phone, and simple enough to finish.*
