@@ -122,6 +122,30 @@
     </div>
   </div>
 
+  <!-- ROOM 5 VIDEO VIEWER — source is assigned only after interaction. -->
+  <div id="video-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="video-overlay-title">
+    <div class="video-overlay-backdrop" id="video-overlay-backdrop"></div>
+    <div class="video-overlay-card">
+      <button type="button" class="video-overlay-close" id="video-overlay-close" aria-label="Close video viewer">✕</button>
+      <div class="video-overlay-label">Video archive</div>
+      <h2 id="video-overlay-title"></h2>
+      <div id="video-player-wrap"></div>
+      <p id="video-overlay-note"></p>
+    </div>
+  </div>
+
+  <!-- ROOM 6 EXTERNAL EXHIBIT VIEWER — iframe is created only on inspection. -->
+  <div id="website-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="website-overlay-title">
+    <div class="website-overlay-backdrop" id="website-overlay-backdrop"></div>
+    <div class="website-overlay-card">
+      <button type="button" class="website-overlay-close" id="website-overlay-close" aria-label="Close exhibit">✕</button>
+      <div class="website-overlay-label">Final exhibition</div>
+      <h2 id="website-overlay-title"></h2>
+      <div id="website-embed-wrap"></div>
+      <a id="website-open-link" class="website-open-link hidden" target="_blank" rel="noopener">Open Exhibit</a>
+    </div>
+  </div>
+
   <!-- ============================================================
      START-SCREEN / UI WIRING — plain script, no dependency on
      Three.js or any CDN import. This guarantees the Enter button

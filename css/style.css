@@ -735,6 +735,57 @@
     .exhibit-overlay-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(13, 10, 31, 0.7); color: var(--ink); cursor: pointer; }
     .exhibit-overlay-close:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
 
+    /* ---------- ROOM 5: VIDEO ARCHIVE VIEWER ---------- */
+    #video-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 23;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    #video-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .video-overlay-backdrop { position: absolute; inset: 0; background: rgba(8, 5, 16, 0.88); backdrop-filter: blur(2px); }
+    .video-overlay-card {
+      position: relative;
+      z-index: 1;
+      width: min(100%, 900px);
+      max-height: 92vh;
+      overflow: auto;
+      padding: 24px;
+      border: 1px solid rgba(212, 168, 75, 0.45);
+      border-radius: 18px;
+      background: linear-gradient(180deg, #201336 0%, var(--wall) 100%);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .video-overlay-label { color: var(--brass); font: 11px var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; }
+    .video-overlay-card h2 { margin: 8px 40px 16px 0; color: var(--ink); font: 500 clamp(1.6rem, 6vw, 2.1rem) var(--font-display); line-height: 1.05; }
+    .video-overlay-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(13, 10, 31, 0.7); color: var(--ink); cursor: pointer; }
+    .video-overlay-close:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+    #video-player-wrap { display: flex; align-items: center; justify-content: center; min-height: 180px; overflow: hidden; border: 1px solid rgba(212, 168, 75, 0.25); border-radius: 10px; background: rgba(13, 10, 31, 0.6); }
+    #video-player-wrap video { display: block; width: 100%; max-height: 66vh; background: #080510; }
+    #video-player-wrap .video-fallback { margin: 0; padding: 32px; color: rgba(244, 239, 230, 0.76); text-align: center; line-height: 1.6; }
+    #video-overlay-note { margin: 14px 0 0; color: rgba(244, 239, 230, 0.75); font-size: 14px; line-height: 1.6; }
+
+    /* ---------- ROOM 6: EXTERNAL WALL EXHIBITS ---------- */
+    #website-overlay { position: fixed; inset: 0; z-index: 24; display: flex; align-items: center; justify-content: center; padding: 16px; transition: opacity 0.25s ease, visibility 0.25s ease; }
+    #website-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .website-overlay-backdrop { position: absolute; inset: 0; background: rgba(8, 5, 16, 0.88); backdrop-filter: blur(2px); }
+    .website-overlay-card { position: relative; z-index: 1; width: min(100%, 1120px); max-height: 92vh; overflow: auto; padding: 24px; border: 1px solid rgba(212, 168, 75, 0.45); border-radius: 18px; background: linear-gradient(180deg, #201336 0%, var(--wall) 100%); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
+    .website-overlay-label { color: var(--brass); font: 11px var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; }
+    .website-overlay-card h2 { margin: 8px 40px 16px 0; color: var(--ink); font: 500 clamp(1.6rem, 6vw, 2.1rem) var(--font-display); line-height: 1.05; }
+    .website-overlay-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(13, 10, 31, 0.7); color: var(--ink); cursor: pointer; }
+    .website-overlay-close:focus-visible, .website-open-link:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+    #website-embed-wrap { min-height: 220px; border: 1px solid rgba(212, 168, 75, 0.25); border-radius: 10px; overflow: hidden; background: rgba(13, 10, 31, 0.6); }
+    #website-embed-wrap iframe { display: block; width: 100%; min-height: min(65vh, 660px); border: 0; background: #fff; }
+    #website-embed-wrap .website-fallback { margin: 0; padding: 36px; color: rgba(244, 239, 230, 0.76); line-height: 1.6; text-align: center; }
+    .website-open-link { display: inline-block; margin-top: 16px; padding: 11px 20px; border-radius: 999px; background: var(--brass); color: #1a0f2e; font: 600 13px var(--font-ui); text-decoration: none; text-transform: uppercase; }
+    .website-open-link.hidden { display: none; }
+
     @media (prefers-reduced-motion: reduce) {
-      #room-plaque, #playlist-overlay, #exhibit-overlay { transition: none; }
+      #room-plaque, #playlist-overlay, #exhibit-overlay, #video-overlay, #website-overlay { transition: none; }
     }

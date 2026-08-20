@@ -64,6 +64,18 @@ try {
   const exhibitOverlayLabelEl = document.getElementById("exhibit-overlay-label");
   const exhibitOverlayTitleEl = document.getElementById("exhibit-overlay-title");
   const exhibitOverlayDescriptionEl = document.getElementById("exhibit-overlay-description");
+  const videoOverlayEl = document.getElementById("video-overlay");
+  const videoOverlayBackdropEl = document.getElementById("video-overlay-backdrop");
+  const videoOverlayCloseEl = document.getElementById("video-overlay-close");
+  const videoOverlayTitleEl = document.getElementById("video-overlay-title");
+  const videoOverlayNoteEl = document.getElementById("video-overlay-note");
+  const videoPlayerWrapEl = document.getElementById("video-player-wrap");
+  const websiteOverlayEl = document.getElementById("website-overlay");
+  const websiteOverlayBackdropEl = document.getElementById("website-overlay-backdrop");
+  const websiteOverlayCloseEl = document.getElementById("website-overlay-close");
+  const websiteOverlayTitleEl = document.getElementById("website-overlay-title");
+  const websiteEmbedWrapEl = document.getElementById("website-embed-wrap");
+  const websiteOpenLinkEl = document.getElementById("website-open-link");
 
   // ---- Milestone 3: data-driven room graph ----
   // One room is "live" (built into roomGroup) at a time. Walking into an
@@ -126,6 +138,8 @@ try {
     roomGeneration++; // invalidate any in-flight async photo image loads
     playlistBoardRecord = null;
     interestRecords = [];
+    videoRecords = [];
+    websiteRecords = [];
     for (let i = roomGroup.children.length - 1; i >= 0; i--) {
       const child = roomGroup.children[i];
       roomGroup.remove(child);
@@ -204,6 +218,8 @@ try {
   // Room 4's tangible archive objects use the same proximity model as
   // photos and doors, but their content remains entirely in config.js.
   let interestRecords = [];
+  let videoRecords = [];
+  let websiteRecords = [];
   let playlistBoardRecord = null;
   let currentRoomId = null;
   // bumped every time the room is rebuilt, so an async photo image that
@@ -777,7 +793,9 @@ try {
     if (line) lines.push(line);
     lines.slice(0, 2).forEach((text, index) => ctx.fillText(text, canvas.width / 2, 130 + index * 48));
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    // Labels are intentionally front-facing only. Rendering both sides
+    // makes a canvas label appear as reversed text when viewed from behind.
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
     material.userData.disposable = true;
     return new THREE.Mesh(new THREE.PlaneGeometry(width, width * 0.37), material);
   }
@@ -854,9 +872,222 @@ try {
         addMesh(new THREE.SphereGeometry(0.17, 10, 8), item.title.toLowerCase().includes("lil") ? paper : rose,
           x + Math.cos(angle) * 0.2, 1.48, z + Math.sin(angle) * 0.2);
       }
-      addArchiveLabel(item.title, "Flower study", x, 0.64, z - 0.56, 0, 0.98);
+      // The flower plaques are approached from the north/entry side, so
+      // their readable face points back into the room rather than south.
+      addArchiveLabel(item.title, "Flower study", x, 0.64, z - 0.56, Math.PI, 0.98);
       register(item, x, z - 0.42);
     });
+  }
+
+  // ---- Room 5: a small, physical video archive / cinema display ----
+  function makeVideoPosterTexture(video) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 960;
+    canvas.height = 540;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#120a22";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#d4a84b";
+    ctx.lineWidth = 16;
+    ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
+    ctx.fillStyle = "#d4a84b";
+    ctx.font = "28px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("VIDEO ARCHIVE", canvas.width / 2, 112);
+    ctx.fillStyle = "#ff8fa3";
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, 255, 62, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a0f2e";
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 18, 218);
+    ctx.lineTo(canvas.width / 2 - 18, 292);
+    ctx.lineTo(canvas.width / 2 + 45, 255);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#f4efe6";
+    ctx.font = "42px serif";
+    ctx.fillText(video.title || "Video Exhibit", canvas.width / 2, 405);
+    ctx.fillStyle = "#ffe4a8";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Tap / press E to play", canvas.width / 2, 466);
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  function buildVideoArchive(roomCfg) {
+    const videos = Array.isArray(roomCfg.videos) ? roomCfg.videos : [];
+    // An empty configuration still reads as an archive rather than a bare room.
+    const displays = videos.length ? videos : [{ title: "Video Archive", note: "Add video entries in js/config.js." }];
+    const slots = [
+      { x: 0, z: -5.74, rotation: 0, labelX: 0, labelZ: -5.6 },
+      { x: 5.74, z: 2.55, rotation: -Math.PI / 2, labelX: 5.59, labelZ: 2.55 },
+      { x: -2.7, z: 5.74, rotation: Math.PI, labelX: -2.7, labelZ: 5.59 },
+      { x: -5.74, z: 2.55, rotation: Math.PI / 2, labelX: -5.59, labelZ: 2.55 },
+    ];
+    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
+    const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.68, metalness: 0.1 });
+
+    displays.slice(0, slots.length).forEach((video, index) => {
+      const slot = slots[index];
+      const backing = new THREE.Mesh(new THREE.BoxGeometry(3.25, 2.12, 0.16), casing);
+      backing.position.set(slot.x, 1.95, slot.z);
+      backing.rotation.y = slot.rotation;
+      roomGroup.add(backing);
+
+      const texture = makeVideoPosterTexture(video);
+      const screenMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
+      screenMat.userData.disposable = true;
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(2.92, 1.64), screenMat);
+      const normalX = Math.sin(slot.rotation);
+      const normalZ = Math.cos(slot.rotation);
+      screen.position.set(slot.x + normalX * 0.1, 1.95, slot.z + normalZ * 0.1);
+      screen.rotation.y = slot.rotation;
+      roomGroup.add(screen);
+
+      // A supplied poster replaces the canvas placeholder without touching
+      // the lazy video source. If it cannot load, the placeholder remains.
+      if (video.poster) {
+        const screenGeneration = roomGeneration;
+        new THREE.TextureLoader().load(video.poster, (posterTexture) => {
+          if (screenGeneration !== roomGeneration || screen.material !== screenMat) {
+            posterTexture.dispose();
+            return;
+          }
+          texture.dispose();
+          screenMat.map = posterTexture;
+          screenMat.needsUpdate = true;
+        });
+      }
+
+      const frameGroup = new THREE.Group();
+      frameGroup.position.set(slot.x, 1.95, slot.z);
+      frameGroup.rotation.y = slot.rotation;
+      [
+        [new THREE.BoxGeometry(3.12, 0.09, 0.1), 0, 0.91],
+        [new THREE.BoxGeometry(3.12, 0.09, 0.1), 0, -0.91],
+        [new THREE.BoxGeometry(0.09, 1.84, 0.1), 1.515, 0],
+        [new THREE.BoxGeometry(0.09, 1.84, 0.1), -1.515, 0],
+      ].forEach(([geometry, x, y]) => {
+        const rail = new THREE.Mesh(geometry, brass);
+        rail.position.set(x, y, 0.16);
+        frameGroup.add(rail);
+      });
+      roomGroup.add(frameGroup);
+      addArchiveLabel(video.title || "Video Exhibit", "Video archive", slot.labelX, 0.7, slot.labelZ, slot.rotation, 1.32);
+      videoRecords.push({ video, anchor: { x: slot.x - normalX * 0.65, z: slot.z - normalZ * 0.65 } });
+    });
+  }
+
+  // ---- Room 6: four built-in external wall exhibits + the finale plaque ----
+  function makeWebsiteScreenTexture(exhibit) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1400;
+    canvas.height = 460;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#120a22";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#d4a84b";
+    ctx.lineWidth = 16;
+    ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
+    ctx.fillStyle = "#d4a84b";
+    ctx.font = "26px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(exhibit.primary ? "PRIMARY EXHIBIT" : "EXTERNAL EXHIBIT", canvas.width / 2, 105);
+    ctx.fillStyle = "#f4efe6";
+    ctx.font = "60px serif";
+    ctx.fillText(exhibit.title || "External Exhibit", canvas.width / 2, 220);
+    ctx.fillStyle = "#ffe4a8";
+    ctx.font = "28px sans-serif";
+    ctx.fillText(exhibit.url && /^https?:/i.test(exhibit.url) ? "Tap / press E to open" : "URL will be added later", canvas.width / 2, 318);
+    ctx.fillStyle = "rgba(244, 239, 230, 0.62)";
+    ctx.font = "22px sans-serif";
+    ctx.fillText("Built-in museum wall display", canvas.width / 2, 374);
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  function makeFinalePlaque(title, message) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 300;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#201336";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#d4a84b";
+    ctx.lineWidth = 10;
+    ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffe4a8";
+    ctx.font = "48px serif";
+    ctx.fillText(title || "For You", canvas.width / 2, 88);
+    ctx.fillStyle = "#f4efe6";
+    ctx.font = "26px sans-serif";
+    const words = String(message || "").split(" ");
+    const lines = [];
+    let line = "";
+    words.forEach((word) => {
+      const candidate = `${line} ${word}`.trim();
+      if (ctx.measureText(candidate).width > 1040 && line) {
+        lines.push(line);
+        line = word;
+      } else line = candidate;
+    });
+    if (line) lines.push(line);
+    lines.slice(0, 3).forEach((text, index) => ctx.fillText(text, canvas.width / 2, 148 + index * 42));
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
+    material.userData.disposable = true;
+    return new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.4), material);
+  }
+
+  function buildExternalExhibition(roomCfg) {
+    const walls = Array.isArray(roomCfg.externalWalls) ? roomCfg.externalWalls.slice(0, 4) : [];
+    const primary = walls.find((wall) => wall.primary || wall.id === roomCfg.entryFacingWall) || walls[0];
+    const remaining = walls.filter((wall) => wall !== primary);
+    const ordered = [primary, ...remaining].filter(Boolean);
+    const slots = [
+      // The primary display sits south, directly opposite Room 6's north-side entry.
+      { wallId: "south", x: 0, z: 5.74, rotation: Math.PI },
+      { wallId: "north", x: 0, z: -5.74, rotation: 0 },
+      { wallId: "east", x: 5.74, z: 0, rotation: -Math.PI / 2 },
+      { wallId: "west", x: -5.74, z: 0, rotation: Math.PI / 2 },
+    ];
+    const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.7, metalness: 0.1 });
+    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
+
+    ordered.forEach((exhibit, index) => {
+      const slot = slots[index];
+      const normalX = Math.sin(slot.rotation);
+      const normalZ = Math.cos(slot.rotation);
+      const backing = new THREE.Mesh(new THREE.BoxGeometry(9.45, 2.72, 0.16), casing);
+      backing.position.set(slot.x, 2.0, slot.z);
+      backing.rotation.y = slot.rotation;
+      roomGroup.add(backing);
+      const texture = makeWebsiteScreenTexture(exhibit);
+      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
+      material.userData.disposable = true;
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(9.1, 2.38), material);
+      screen.position.set(slot.x + normalX * 0.11, 2.0, slot.z + normalZ * 0.11);
+      screen.rotation.y = slot.rotation;
+      roomGroup.add(screen);
+      const frameGroup = new THREE.Group();
+      frameGroup.position.set(slot.x, 2.0, slot.z);
+      frameGroup.rotation.y = slot.rotation;
+      [[new THREE.BoxGeometry(9.35, 0.1, 0.1), 0, 1.32], [new THREE.BoxGeometry(9.35, 0.1, 0.1), 0, -1.32],
+        [new THREE.BoxGeometry(0.1, 2.74, 0.1), 4.625, 0], [new THREE.BoxGeometry(0.1, 2.74, 0.1), -4.625, 0]]
+        .forEach(([geometry, x, y]) => {
+          const rail = new THREE.Mesh(geometry, brass);
+          rail.position.set(x, y, 0.17);
+          frameGroup.add(rail);
+        });
+      roomGroup.add(frameGroup);
+      websiteRecords.push({ exhibit, anchor: { x: slot.x - normalX * 1.1, z: slot.z - normalZ * 1.1 } });
+    });
+
+    // This is part of the focal wall, not a fifth external exhibit.
+    const finale = makeFinalePlaque(CONFIG.finale && CONFIG.finale.title, CONFIG.finale && CONFIG.finale.message);
+    finale.position.set(0, 0.52, 5.57);
+    finale.rotation.y = Math.PI;
+    roomGroup.add(finale);
   }
 
   // ---- Milestone 5: Room 4's separate, lazy playlist-board exhibit ----
@@ -960,6 +1191,97 @@ try {
   exhibitOverlayCloseEl.addEventListener("click", closeArchiveExhibit);
   exhibitOverlayBackdropEl.addEventListener("click", closeArchiveExhibit);
 
+  function openVideoViewer(record) {
+    if (!record || isAnyOverlayOpen()) return;
+    const video = record.video || {};
+    videoOverlayTitleEl.textContent = video.title || "Video Exhibit";
+    videoOverlayNoteEl.textContent = video.note || "";
+    videoPlayerWrapEl.replaceChildren();
+    if (video.src) {
+      const player = document.createElement("video");
+      player.controls = true;
+      player.preload = "none";
+      player.playsInline = true;
+      if (video.poster) player.poster = video.poster;
+      player.src = video.src; // the source is assigned only after opening
+      player.addEventListener("error", () => {
+        videoPlayerWrapEl.replaceChildren();
+        const fallback = document.createElement("p");
+        fallback.className = "video-fallback";
+        fallback.textContent = "This video is not available yet. Add a local video file in js/config.js when it is ready.";
+        videoPlayerWrapEl.appendChild(fallback);
+      }, { once: true });
+      videoPlayerWrapEl.appendChild(player);
+    } else {
+      const fallback = document.createElement("p");
+      fallback.className = "video-fallback";
+      fallback.textContent = "This video exhibit is ready for a local video file. Add its src in js/config.js when it is available.";
+      videoPlayerWrapEl.appendChild(fallback);
+    }
+    videoOverlayEl.classList.remove("hidden");
+    keys.forward = keys.backward = keys.left = keys.right = false;
+  }
+
+  function closeVideoViewer() {
+    const player = videoPlayerWrapEl.querySelector("video");
+    if (player) {
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+    }
+    videoPlayerWrapEl.replaceChildren();
+    videoOverlayEl.classList.add("hidden");
+  }
+
+  videoOverlayCloseEl.addEventListener("click", closeVideoViewer);
+  videoOverlayBackdropEl.addEventListener("click", closeVideoViewer);
+
+  function openWebsiteExhibit(record) {
+    if (!record || isAnyOverlayOpen()) return;
+    const exhibit = record.exhibit || {};
+    const url = exhibit.url || "";
+    const isValidUrl = /^https?:/i.test(url);
+    websiteOverlayTitleEl.textContent = exhibit.title || "External Exhibit";
+    websiteEmbedWrapEl.replaceChildren();
+    websiteOpenLinkEl.classList.add("hidden");
+    const showFallback = () => {
+      websiteEmbedWrapEl.replaceChildren();
+      const fallback = document.createElement("p");
+      fallback.className = "website-fallback";
+      fallback.textContent = isValidUrl
+        ? "This exhibit opens externally."
+        : "This exhibit will be available once its public URL is added in js/config.js.";
+      websiteEmbedWrapEl.appendChild(fallback);
+      if (isValidUrl) {
+        websiteOpenLinkEl.href = url;
+        websiteOpenLinkEl.classList.remove("hidden");
+      }
+    };
+    if (isValidUrl) {
+      const iframe = document.createElement("iframe");
+      iframe.title = exhibit.title || "External museum exhibit";
+      iframe.loading = "lazy";
+      iframe.referrerPolicy = "strict-origin-when-cross-origin";
+      iframe.src = url;
+      iframe.addEventListener("error", showFallback, { once: true });
+      websiteEmbedWrapEl.appendChild(iframe);
+      // Keep the compliant escape hatch available even if a remote site
+      // later declines iframe embedding through its own security policy.
+      websiteOpenLinkEl.href = url;
+      websiteOpenLinkEl.classList.remove("hidden");
+    } else showFallback();
+    websiteOverlayEl.classList.remove("hidden");
+    keys.forward = keys.backward = keys.left = keys.right = false;
+  }
+
+  function closeWebsiteExhibit() {
+    websiteEmbedWrapEl.replaceChildren(); // unload the external page on close
+    websiteOverlayEl.classList.add("hidden");
+  }
+
+  websiteOverlayCloseEl.addEventListener("click", closeWebsiteExhibit);
+  websiteOverlayBackdropEl.addEventListener("click", closeWebsiteExhibit);
+
   function buildRoomShell(roomId) {
     clearRoomGroup();
     const generation = roomGeneration; // captured after clearRoomGroup's bump
@@ -1016,6 +1338,8 @@ try {
       buildInterestGallery(roomCfg);
       buildPlaylistBoard(roomCfg);
     }
+    if (roomId === "room5") buildVideoArchive(roomCfg);
+    if (roomId === "room6") buildExternalExhibition(roomCfg);
 
     if (roomIndicatorEl) {
       roomIndicatorEl.textContent = `Exhibit ${roomCfg.exhibitNo} — ${roomCfg.title}`;
@@ -1032,6 +1356,8 @@ try {
   let nearDoor = null;         // door currently in proximity range (for prompt + interact)
   let nearPhoto = null;        // photo frame currently in proximity range
   let nearInterest = null;
+  let nearVideo = null;
+  let nearWebsite = null;
   let nearPlaylistBoard = null;
 
   function isDoorOverlayOpen() {
@@ -1050,8 +1376,16 @@ try {
     return !exhibitOverlayEl.classList.contains("hidden");
   }
 
+  function isVideoOverlayOpen() {
+    return !videoOverlayEl.classList.contains("hidden");
+  }
+
+  function isWebsiteOverlayOpen() {
+    return !websiteOverlayEl.classList.contains("hidden");
+  }
+
   function isAnyOverlayOpen() {
-    return isDoorOverlayOpen() || isPhotoOverlayOpen() || isPlaylistOverlayOpen() || isExhibitOverlayOpen();
+    return isDoorOverlayOpen() || isPhotoOverlayOpen() || isPlaylistOverlayOpen() || isExhibitOverlayOpen() || isVideoOverlayOpen() || isWebsiteOverlayOpen();
   }
 
   function findDoorAtWall(wallId, tangentCoord) {
@@ -1186,6 +1520,8 @@ try {
     else if (e.key === "Escape" && isPhotoOverlayOpen()) closePhotoLightbox();
     else if (e.key === "Escape" && isPlaylistOverlayOpen()) closePlaylistBoard();
     else if (e.key === "Escape" && isExhibitOverlayOpen()) closeArchiveExhibit();
+    else if (e.key === "Escape" && isVideoOverlayOpen()) closeVideoViewer();
+    else if (e.key === "Escape" && isWebsiteOverlayOpen()) closeWebsiteExhibit();
   });
 
   function attemptOpenLockedDoor(record) {
@@ -1203,6 +1539,8 @@ try {
       nearDoor = null;
       nearPhoto = null;
       nearInterest = null;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = null;
       return;
     }
@@ -1237,6 +1575,26 @@ try {
       }
     });
 
+    let closestVideo = null;
+    let closestVideoDist = PHOTO_INTERACT_DISTANCE;
+    videoRecords.forEach((r) => {
+      const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+      if (dist < closestVideoDist) {
+        closestVideoDist = dist;
+        closestVideo = r;
+      }
+    });
+
+    let closestWebsite = null;
+    let closestWebsiteDist = INTERACT_DISTANCE;
+    websiteRecords.forEach((r) => {
+      const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+      if (dist < closestWebsiteDist) {
+        closestWebsiteDist = dist;
+        closestWebsite = r;
+      }
+    });
+
     const playlistDist = playlistBoardRecord
       ? Math.hypot(camera.position.x - playlistBoardRecord.anchor.x, camera.position.z - playlistBoardRecord.anchor.z)
       : Infinity;
@@ -1244,34 +1602,63 @@ try {
     // All nearby interactables compete by physical distance. This keeps a
     // single clear prompt when a door and a Room 4 exhibit overlap.
     const closestObjectDist = Math.min(closestPhoto ? closestPhotoDist : Infinity,
-      closestInterest ? closestInterestDist : Infinity, playlistDist);
+      closestInterest ? closestInterestDist : Infinity, closestVideo ? closestVideoDist : Infinity,
+      closestWebsite ? closestWebsiteDist : Infinity, playlistDist);
     if (closestDoor && closestDoorDist <= closestObjectDist) {
       nearDoor = closestDoor;
       nearPhoto = null;
       nearInterest = null;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = null;
       doorPromptEl.textContent = nearDoor.locked
         ? `${nearDoor.label} — tap / press E to answer`
         : `${nearDoor.label} — walk through`;
       doorPromptEl.classList.add("visible");
-    } else if (closestPhoto && closestPhotoDist <= Math.min(closestInterest ? closestInterestDist : Infinity, playlistDist)) {
+    } else if (closestPhoto && closestPhotoDist <= Math.min(closestInterest ? closestInterestDist : Infinity,
+      closestVideo ? closestVideoDist : Infinity, closestWebsite ? closestWebsiteDist : Infinity, playlistDist)) {
       nearDoor = null;
       nearPhoto = closestPhoto;
       nearInterest = null;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = null;
       doorPromptEl.textContent = "Tap to view / press E to inspect";
       doorPromptEl.classList.add("visible");
-    } else if (closestInterest && closestInterestDist <= playlistDist) {
+    } else if (closestInterest && closestInterestDist <= Math.min(closestVideo ? closestVideoDist : Infinity,
+      closestWebsite ? closestWebsiteDist : Infinity, playlistDist)) {
       nearDoor = null;
       nearPhoto = null;
       nearInterest = closestInterest;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = null;
       doorPromptEl.textContent = "Tap to inspect / press E to inspect";
+      doorPromptEl.classList.add("visible");
+    } else if (closestVideo && closestVideoDist <= Math.min(closestWebsite ? closestWebsiteDist : Infinity, playlistDist)) {
+      nearDoor = null;
+      nearPhoto = null;
+      nearInterest = null;
+      nearVideo = closestVideo;
+      nearWebsite = null;
+      nearPlaylistBoard = null;
+      doorPromptEl.textContent = "Tap to play / press E to play";
+      doorPromptEl.classList.add("visible");
+    } else if (closestWebsite && closestWebsiteDist <= playlistDist) {
+      nearDoor = null;
+      nearPhoto = null;
+      nearInterest = null;
+      nearVideo = null;
+      nearWebsite = closestWebsite;
+      nearPlaylistBoard = null;
+      doorPromptEl.textContent = "Tap to open / press E to inspect";
       doorPromptEl.classList.add("visible");
     } else if (playlistBoardRecord && playlistDist < INTERACT_DISTANCE) {
       nearDoor = null;
       nearPhoto = null;
       nearInterest = null;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = playlistBoardRecord;
       doorPromptEl.textContent = "Playlist exhibit — tap / press E to view";
       doorPromptEl.classList.add("visible");
@@ -1279,6 +1666,8 @@ try {
       nearDoor = null;
       nearPhoto = null;
       nearInterest = null;
+      nearVideo = null;
+      nearWebsite = null;
       nearPlaylistBoard = null;
       doorPromptEl.classList.remove("visible");
     }
@@ -1292,6 +1681,10 @@ try {
       openPhotoLightbox(nearPhoto);
     } else if (nearInterest) {
       openArchiveExhibit(nearInterest);
+    } else if (nearVideo) {
+      openVideoViewer(nearVideo);
+    } else if (nearWebsite) {
+      openWebsiteExhibit(nearWebsite);
     } else if (nearPlaylistBoard) {
       openPlaylistBoard(nearPlaylistBoard);
     }
@@ -1310,9 +1703,10 @@ try {
       );
       yaw = Math.atan2(-record.normal.x, -record.normal.z);
     } else {
-      // No reciprocal door record (e.g. arriving one-way, or a room
-      // whose door layout isn't built yet) — safe default spawn.
+      // Room 6 is reached through a one-way final door. Its intended entry
+      // view is the primary Wall of Voices display on the opposite wall.
       camera.position.set(0, EYE_HEIGHT, 2);
+      // buildExternalExhibition assigns the focal exhibit to the south wall.
       yaw = Math.PI;
     }
     pitch = 0;

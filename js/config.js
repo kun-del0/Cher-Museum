@@ -204,7 +204,12 @@ const CONFIG = {
       title: "Our Videos",
       type: "video-gallery",
       videos: [
-        // { src: "videos/placeholder.mp4", poster: "videos/placeholder-thumb.webp", title: "Placeholder video", note: "Placeholder caption." }
+        // Replace these generic placeholders with local, browser-friendly
+        // video files (such as .mp4 or .webm) and optional poster images.
+        // The Museum only loads a video after its screen is opened.
+        { src: "", poster: "", title: "Video Exhibit 01", note: "Placeholder archive entry — add a video and optional poster here." },
+        { src: "", poster: "", title: "Video Exhibit 02", note: "Placeholder archive entry — add a video and optional poster here." },
+        { src: "", poster: "", title: "Video Exhibit 03", note: "Placeholder archive entry — add a video and optional poster here." }
       ],
       doors: [
         { target: "room1", label: "Growing Up", question: { prompt: "SAMPLE QUESTION — how many days are in a week?", answers: ["7", "seven"], hint: "One for each day from Monday to Sunday." } },
