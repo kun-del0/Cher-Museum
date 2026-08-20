@@ -21,7 +21,7 @@
      ============================================================ -->
   <div id="start-screen">
     <div class="start-card">
-      <div class="start-eyebrow" id="exhibit-eyebrow">Private Gallery â€” By Invitation</div>
+      <div class="start-eyebrow" id="exhibit-eyebrow">Private Gallery — By Invitation</div>
       <h1 class="start-title" id="museum-title">Museum of <em>Memories</em></h1>
       <p class="start-subtitle" id="start-subtitle"></p>
       <button class="enter-btn" id="enter-btn">Enter</button>
@@ -32,27 +32,37 @@
      SCENE ROOT (Three.js canvas mounts here)
      ============================================================ -->
   <div id="scene-root"></div>
-  <div id="engine-status">Engine â€” Milestone 1: scene ready</div>
-  <div id="controls-hint">WASD / Arrows â€” move<br />Click + drag â€” look</div>
+  <div id="engine-status">Engine — Milestone 1: scene ready</div>
+  <div id="controls-hint">WASD / Arrows — move<br />Click + drag — look</div>
   <div id="room-indicator"></div>
   <div id="door-prompt"></div>
+  <div id="room-plaque" class="hidden" aria-live="polite">
+    <div class="room-plaque-label" id="room-plaque-label"></div>
+    <div class="room-plaque-title" id="room-plaque-title"></div>
+  </div>
+  <div id="music-control" class="hidden" aria-label="Playlist music controls">
+    <span class="music-status" id="music-status">Playlist music</span>
+    <button type="button" id="music-toggle" aria-label="Pause music">Ⅱ</button>
+    <button type="button" id="music-mute" aria-label="Mute music">⌁</button>
+  </div>
+  <div id="music-player" aria-hidden="true"></div>
 
   <!-- ============================================================
-     TOUCH CONTROLS â€” visible joystick + interact button on
+     TOUCH CONTROLS — visible joystick + interact button on
      touch devices (CSS-gated via @media (pointer: coarse)).
      The interact button now opens a nearby door's question
-     overlay (Milestone 3) â€” it will also handle photos/objects
+     overlay (Milestone 3) — it will also handle photos/objects
      in a later milestone.
      ============================================================ -->
   <div id="touch-controls" aria-hidden="true">
     <div id="joystick-base">
       <div id="joystick-knob"></div>
     </div>
-    <button id="interact-btn" type="button" aria-label="Interact">â€¢</button>
+    <button id="interact-btn" type="button" aria-label="Interact">•</button>
   </div>
 
   <!-- ============================================================
-     DOOR QUESTION OVERLAY â€” shown when the player walks into a
+     DOOR QUESTION OVERLAY — shown when the player walks into a
      locked door or interacts with one nearby.
      ============================================================ -->
   <div id="door-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="door-overlay-prompt">
@@ -60,7 +70,7 @@
       <div class="door-overlay-eyebrow" id="door-overlay-label">Locked Door</div>
       <p class="door-overlay-prompt" id="door-overlay-prompt"></p>
       <input type="text" id="door-overlay-input" class="door-overlay-input" autocomplete="off"
-        placeholder="Your answerâ€¦" />
+        placeholder="Your answer…" />
       <p class="door-overlay-feedback" id="door-overlay-feedback" aria-live="polite"></p>
       <p class="door-overlay-hint hidden" id="door-overlay-hint"></p>
       <div class="door-overlay-actions">
@@ -72,13 +82,13 @@
   </div>
 
   <!-- ============================================================
-     PHOTO LIGHTBOX OVERLAY â€” shown when a wall-mounted photo frame
+     PHOTO LIGHTBOX OVERLAY — shown when a wall-mounted photo frame
      is opened (interact button / E key / click-tap while nearby).
      ============================================================ -->
   <div id="photo-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="photo-overlay-caption">
     <div class="photo-overlay-backdrop" id="photo-overlay-backdrop"></div>
     <div class="photo-overlay-card">
-      <button type="button" class="photo-overlay-close" id="photo-overlay-close" aria-label="Close">âœ•</button>
+      <button type="button" class="photo-overlay-close" id="photo-overlay-close" aria-label="Close">✕</button>
       <div class="photo-overlay-image-wrap">
         <img id="photo-overlay-image" alt="" />
       </div>
@@ -90,8 +100,19 @@
     </div>
   </div>
 
+  <div id="playlist-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="playlist-overlay-title">
+    <div class="playlist-overlay-backdrop" id="playlist-overlay-backdrop"></div>
+    <div class="playlist-overlay-card">
+      <button type="button" class="playlist-overlay-close" id="playlist-overlay-close" aria-label="Close">✕</button>
+      <div class="playlist-overlay-label">Playlist exhibit</div>
+      <h2 id="playlist-overlay-title">Cherry's Playlist</h2>
+      <div id="playlist-embed-wrap"></div>
+      <a id="playlist-open-link" class="playlist-open-link hidden" target="_blank" rel="noopener">Open Playlist</a>
+    </div>
+  </div>
+
   <!-- ============================================================
-     START-SCREEN / UI WIRING â€” plain script, no dependency on
+     START-SCREEN / UI WIRING — plain script, no dependency on
      Three.js or any CDN import. This guarantees the Enter button
      and Enter key always work even if the 3D engine below fails
      to load for any reason (offline, blocked CDN, etc).
