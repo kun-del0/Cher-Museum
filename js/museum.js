@@ -1,0 +1,5 @@
+/*
+  Museum foundation layer.
+  The current scene bootstrap remains in main.js so its original execution
+  order and behavior are preserved during this mechanical refactor.
+*/
