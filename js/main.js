@@ -9,7 +9,7 @@ try {
   const sceneRoot = document.getElementById("scene-root");
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0d0a1f); // midnight floor tone as void colour
+  scene.background = new THREE.Color(0x160d0a); // warm shadow beyond the gallery
 
   const camera = new THREE.PerspectiveCamera(
     60,
@@ -22,19 +22,24 @@ try {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   sceneRoot.appendChild(renderer.domElement);
 
-  // ---- shared midnight-gallery light, supplemented by room spot pools ----
-  // A low cool fill keeps the midnight atmosphere; architectural fixtures
-  // and the few wall-directed spots supply the warmth.
-  const ambient = new THREE.AmbientLight(0x302342, 1.2);
+  // ---- restrained warm ambient fill, with the architecture kept in shadow ----
+  const ambient = new THREE.AmbientLight(0x30282a, 0.52);
   scene.add(ambient);
 
-  const skyLight = new THREE.HemisphereLight(0x483a61, 0x10091d, 0.55);
+  // The brighter sky-side fill lands on floors and upward-facing surfaces;
+  // the deep ground-side fill keeps the down-facing ceiling subdued.
+  const skyLight = new THREE.HemisphereLight(0x6a5148, 0x130e0d, 0.35);
   scene.add(skyLight);
 
-  const spot = new THREE.SpotLight(0xffe4a8, 3.4, 20, Math.PI / 4.5, 0.68, 1.4);
-  spot.position.set(0, 6.1, 1);
+  const spot = new THREE.SpotLight(0xffe0b5, 2.4, 24, Math.PI / 4.5, 0.72, 1.5);
+  spot.position.set(0, 5.65, 1);
+  spot.castShadow = true;
+  spot.shadow.mapSize.set(512, 512);
   spot.target.position.set(0, 0, 0);
   scene.add(spot);
   scene.add(spot.target);
@@ -85,18 +90,18 @@ try {
   // ---- Milestone 3: data-driven room graph ----
   // One room is "live" (built into roomGroup) at a time. Walking into an
   // unlocked door — or pressing Interact near one — swaps the room.
-  const ROOM_SIZE = 15;          // deliberately generous gallery footprint
+  const ROOM_SIZE = 18;          // broad, private-gallery footprint
   const ROOM_HALF = ROOM_SIZE / 2;
-  const WALL_HEIGHT = 6.6;
+  const WALL_HEIGHT = 6.0;
   const WALL_THICKNESS = 0.3;
   const PLAYER_RADIUS = 0.4;
   const EYE_HEIGHT = 1.6;
   const DOOR_WIDTH = 1.6;   // gap left open in the wall for each door
-  const DOOR_HEIGHT = 3.7;
+  const DOOR_HEIGHT = 3.45;
   const DOOR_EDGE_MARGIN = 1.3; // keeps doors clear of the corners
 
   // ---- Milestone 4: wall-mounted photo frames ----
-  const PHOTO_MAX_DIM = 1.7;      // largest side a frame can be, in world units
+  const PHOTO_MAX_DIM = 2.2;      // largest side a frame can be, in world units
   const PHOTO_HEIGHT = 2.45;      // generous hanging height above broad wainscot
   // Automatic layouts use three separated rows on each wall. This expands
   // usable hanging space without ever putting a frame in a doorway: each
@@ -116,25 +121,73 @@ try {
   // how far past the wall plane counts as "through the doorway"
   const TRANSITION_DEPTH = 0.9;
 
+  function makeParquetTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 768;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#553021";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const tile = 96;
+    for (let y = 0; y < canvas.height; y += tile) {
+      for (let x = 0; x < canvas.width; x += tile) {
+        const horizontal = ((x / tile) + (y / tile)) % 2 === 0;
+        const tone = horizontal ? "#63402d" : "#5a3526";
+        ctx.fillStyle = tone;
+        if (horizontal) ctx.fillRect(x + 3, y + 3, tile - 6, tile / 2 - 5);
+        else ctx.fillRect(x + 3, y + 3, tile / 2 - 5, tile - 6);
+        ctx.fillStyle = horizontal ? "#553021" : "#4d2b20";
+        if (horizontal) ctx.fillRect(x + 3, y + tile / 2 + 2, tile - 6, tile / 2 - 5);
+        else ctx.fillRect(x + tile / 2 + 2, y + 3, tile / 2 - 5, tile - 6);
+      }
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(3, 3);
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return texture;
+  }
+
+  function makeCarpetTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 512;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#5b2630";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#52212a";
+    ctx.fillRect(42, 42, canvas.width - 84, canvas.height - 84);
+    ctx.strokeStyle = "rgba(41, 15, 20, 0.42)";
+    ctx.lineWidth = 1;
+    for (let i = 64; i < canvas.width - 64; i += 20) {
+      ctx.beginPath();
+      ctx.moveTo(i, 64);
+      ctx.lineTo(i, canvas.height - 64);
+      ctx.stroke();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return texture;
+  }
+
   const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x1a0f2e, // aubergine
-    roughness: 0.9,
+    color: 0x402833, // deep plum-burgundy plaster
+    roughness: 0.88,
     metalness: 0.05,
   });
   const ceilingMat = new THREE.MeshStandardMaterial({
-    color: 0x140b25, // slightly darker aubergine
+    color: 0x6a4c40, // muted warm taupe
     roughness: 0.95,
     metalness: 0.0,
   });
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x0d0a1f, // midnight
-    roughness: 0.85,
-    metalness: 0.05,
+    color: 0x63402d,
+    map: makeParquetTexture(),
+    roughness: 0.74,
+    metalness: 0.02,
   });
   const frameMat = new THREE.MeshStandardMaterial({
-    color: 0xd4a84b, // brass
-    roughness: 0.4,
-    metalness: 0.6,
+    color: 0x9a6a2a, // aged brass
+    roughness: 0.46,
+    metalness: 0.58,
   });
 
   // Everything belonging to the *current* room lives in this group so
@@ -282,6 +335,7 @@ try {
         mesh.position.set(def.fixedValue, WALL_HEIGHT / 2, center);
       }
       roomGroup.add(mesh);
+      mesh.receiveShadow = true;
 
       // Each door-safe segment receives a few large architectural forms:
       // deep dado, a single recessed bay, substantial end pilasters and
@@ -314,9 +368,9 @@ try {
 
   function makeDoorPanelMaterial() {
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x6b3a49,
-      roughness: 0.6,
-      metalness: 0.1,
+      color: 0x2a160e,
+      roughness: 0.58,
+      metalness: 0.04,
       emissive: 0x000000,
       emissiveIntensity: 0,
     });
@@ -331,7 +385,7 @@ try {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#160c27";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 8;
     ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
     ctx.fillStyle = "#f4efe6";
@@ -347,13 +401,13 @@ try {
 
   function applyDoorLockVisual(record) {
     if (record.locked) {
-      record.panelMesh.material.color.set(0x6b3a49); // dim rose — locked
+      record.panelMesh.material.color.set(0x2a160e);
       record.panelMesh.material.emissive.set(0x000000);
       record.panelMesh.material.emissiveIntensity = 0;
     } else {
-      record.panelMesh.material.color.set(0xffe4a8); // warm glow — unlocked
-      record.panelMesh.material.emissive.set(0xffb84d);
-      record.panelMesh.material.emissiveIntensity = 0.55;
+      record.panelMesh.material.color.set(0x432314);
+      record.panelMesh.material.emissive.set(0x1a0c04);
+      record.panelMesh.material.emissiveIntensity = 0.12;
     }
   }
 
@@ -390,6 +444,22 @@ try {
       anchor.z + def.normal.z * 0.035
     );
     roomGroup.add(panelMesh);
+    panelMesh.castShadow = true;
+
+    // Two restrained recessed rails give the dark timber door a real panelled
+    // construction, without altering its collision gap or lock behaviour.
+    const panelRailMat = trimMat;
+    const railWidth = DOOR_WIDTH - 0.46;
+    [1.05, 2.25].forEach((y) => {
+      const rail = new THREE.Mesh(
+        def.tangentAxis === "x"
+          ? new THREE.BoxGeometry(railWidth, 0.07, 0.06)
+          : new THREE.BoxGeometry(0.06, 0.07, railWidth),
+        panelRailMat
+      );
+      rail.position.set(anchor.x + def.normal.x * 0.14, y, anchor.z + def.normal.z * 0.14);
+      roomGroup.add(rail);
+    });
 
     // Close the tall wall opening above the actual door and add restrained
     // brass joinery so every transition reads as a substantial museum door.
@@ -449,13 +519,13 @@ try {
 
   function makePhotoFrameMaterials() {
     const frameBorderMat = new THREE.MeshStandardMaterial({
-      color: 0xd4a84b, // brass, same family as door frames
-      roughness: 0.45,
-      metalness: 0.55,
+      color: 0x9a6a2a,
+      roughness: 0.42,
+      metalness: 0.6,
     });
     frameBorderMat.userData.disposable = true;
     const photoMat = new THREE.MeshBasicMaterial({
-      color: 0x2a1f3a, // dim placeholder tone until the image loads
+      color: 0x291512, // dim placeholder tone until the image loads
     });
     photoMat.userData.disposable = true;
     return { frameBorderMat, photoMat };
@@ -468,13 +538,13 @@ try {
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#241536";
+    ctx.fillStyle = "#351718";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 4;
     ctx.setLineDash([10, 8]);
     ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-    ctx.fillStyle = "#d4a84b";
+    ctx.fillStyle = "#9a6a2a";
     ctx.textAlign = "center";
     ctx.font = "16px monospace";
     ctx.fillText("PHOTO NOT", canvas.width / 2, canvas.height / 2 - 12);
@@ -547,13 +617,13 @@ try {
   // uses the same rules, so a larger collection simply continues into
   // smaller, still-readable frames rather than assuming a fixed count.
   function photoMaxDimensionForCount(count) {
-    if (count <= 3) return 1.7;
-    if (count <= 8) return 1.5;
-    if (count <= 12) return 1.35;
-    if (count <= 18) return 1.15;
-    if (count <= 28) return 0.95;
-    if (count <= 40) return 0.78;
-    if (count <= 60) return 0.62;
+    if (count <= 3) return 2.15;
+    if (count <= 8) return 1.85;
+    if (count <= 12) return 1.6;
+    if (count <= 18) return 1.32;
+    if (count <= 28) return 1.05;
+    if (count <= 40) return 0.84;
+    if (count <= 60) return 0.66;
     return 0.5;
   }
 
@@ -701,6 +771,46 @@ try {
 
     roomGroup.add(borderMesh);
     roomGroup.add(photoMesh);
+    borderMesh.castShadow = true;
+
+    // The frame profile changes lightly from work to work: each stays cheap
+    // geometry, but the alternating stepped or beaded corners keep the hang
+    // from reading as a row of identical UI cards.
+    const profile = String(photo.year || photo.caption || offset).length % 3;
+    const railThickness = profile === 0 ? 0.075 : profile === 1 ? 0.11 : 0.06;
+    const railDepth = 0.065;
+    const addFrameRail = (width, height, x, y) => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(width, height, railDepth), frameBorderMat);
+      rail.rotation.y = rotY;
+      rail.position.set(
+        anchor.x + normal.x * (WALL_THICKNESS / 2 + 0.095),
+        mountHeight + y,
+        anchor.z + normal.z * (WALL_THICKNESS / 2 + 0.095)
+      );
+      // The local offset needs to follow the wall's horizontal tangent.
+      if (def.tangentAxis === "x") rail.position.x += x;
+      else rail.position.z += x;
+      roomGroup.add(rail);
+    };
+    const outerW = frameW + FRAME_BORDER_PAD + railThickness;
+    const outerH = frameH + FRAME_BORDER_PAD + railThickness;
+    addFrameRail(outerW, railThickness, 0, outerH / 2 - railThickness / 2);
+    addFrameRail(outerW, railThickness, 0, -outerH / 2 + railThickness / 2);
+    addFrameRail(railThickness, outerH, -outerW / 2 + railThickness / 2, 0);
+    addFrameRail(railThickness, outerH, outerW / 2 - railThickness / 2, 0);
+    if (profile === 2) {
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([xSign, ySign]) => {
+        const corner = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), frameBorderMat);
+        corner.position.set(
+          anchor.x + normal.x * (WALL_THICKNESS / 2 + 0.13),
+          mountHeight + ySign * outerH / 2,
+          anchor.z + normal.z * (WALL_THICKNESS / 2 + 0.13)
+        );
+        if (def.tangentAxis === "x") corner.position.x += xSign * outerW / 2;
+        else corner.position.z += xSign * outerW / 2;
+        roomGroup.add(corner);
+      });
+    }
 
     const record = {
       wallId, offset, anchor, normal, photo, borderMesh, photoMesh, frameW, frameH, mountHeight,
@@ -887,11 +997,11 @@ try {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#160c27";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 10;
     ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
     ctx.textAlign = "center";
-    ctx.fillStyle = "#d4a84b";
+    ctx.fillStyle = "#9a6a2a";
     ctx.font = "24px monospace";
     ctx.fillText(category.toUpperCase(), canvas.width / 2, 58);
     ctx.fillStyle = "#f4efe6";
@@ -930,12 +1040,12 @@ try {
       (groups[type] ||= []).push(item);
       return groups;
     }, {});
-    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.4, metalness: 0.65 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x4a2c4e, roughness: 0.78, metalness: 0.08 });
-    const paper = new THREE.MeshStandardMaterial({ color: 0xf4efe6, roughness: 0.8 });
-    const rose = new THREE.MeshStandardMaterial({ color: 0xff8fa3, roughness: 0.55 });
-    const leaf = new THREE.MeshStandardMaterial({ color: 0x617d54, roughness: 0.8 });
-    const gameBlue = new THREE.MeshStandardMaterial({ color: 0x537fa1, roughness: 0.5, metalness: 0.15 });
+    const brass = new THREE.MeshStandardMaterial({ color: 0x9a6a2a, roughness: 0.42, metalness: 0.58 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x2e1b14, roughness: 0.66, metalness: 0.03 });
+    const paper = new THREE.MeshStandardMaterial({ color: 0xd9c7a7, roughness: 0.8 });
+    const rose = new THREE.MeshStandardMaterial({ color: 0x8f2930, roughness: 0.55 });
+    const leaf = new THREE.MeshStandardMaterial({ color: 0x526042, roughness: 0.8 });
+    const gameBlue = new THREE.MeshStandardMaterial({ color: 0x3d4c4e, roughness: 0.5, metalness: 0.15 });
 
     const register = (item, x, z) => interestRecords.push({ item, anchor: { x, z } });
     const addMesh = (geometry, material, x, y, z, rotationY = 0) => {
@@ -1004,20 +1114,20 @@ try {
     canvas.width = 960;
     canvas.height = 540;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#120a22";
+    ctx.fillStyle = "#24100d";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#a77a31";
     ctx.lineWidth = 16;
     ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
-    ctx.fillStyle = "#d4a84b";
+    ctx.fillStyle = "#a77a31";
     ctx.font = "28px monospace";
     ctx.textAlign = "center";
     ctx.fillText("VIDEO ARCHIVE", canvas.width / 2, 112);
-    ctx.fillStyle = "#ff8fa3";
+    ctx.fillStyle = "#8f2930";
     ctx.beginPath();
     ctx.arc(canvas.width / 2, 255, 62, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#1a0f2e";
+    ctx.fillStyle = "#24100d";
     ctx.beginPath();
     ctx.moveTo(canvas.width / 2 - 18, 218);
     ctx.lineTo(canvas.width / 2 - 18, 292);
@@ -1043,8 +1153,8 @@ try {
       { x: -3.2, z: ROOM_HALF - 0.26, rotation: Math.PI, labelX: -3.2, labelZ: ROOM_HALF - 0.42 },
       { x: -ROOM_HALF + 0.26, z: 3.2, rotation: Math.PI / 2, labelX: -ROOM_HALF + 0.42, labelZ: 3.2 },
     ];
-    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
-    const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.68, metalness: 0.1 });
+    const brass = new THREE.MeshStandardMaterial({ color: 0x9a6a2a, roughness: 0.42, metalness: 0.62 });
+    const casing = new THREE.MeshStandardMaterial({ color: 0x32170f, roughness: 0.68, metalness: 0.04 });
 
     displays.slice(0, slots.length).forEach((video, index) => {
       const slot = slots[index];
@@ -1103,12 +1213,12 @@ try {
     canvas.width = 1400;
     canvas.height = 460;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#120a22";
+    ctx.fillStyle = "#24100d";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 16;
     ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
-    ctx.fillStyle = "#d4a84b";
+    ctx.fillStyle = "#9a6a2a";
     ctx.font = "26px monospace";
     ctx.textAlign = "center";
     ctx.fillText(exhibit.primary ? "PRIMARY EXHIBIT" : "EXTERNAL EXHIBIT", canvas.width / 2, 105);
@@ -1129,9 +1239,9 @@ try {
     canvas.width = 1200;
     canvas.height = 300;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#201336";
+    ctx.fillStyle = "#351718";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 10;
     ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
     ctx.textAlign = "center";
@@ -1170,8 +1280,8 @@ try {
       { wallId: "east", x: ROOM_HALF - 0.26, z: 0, rotation: -Math.PI / 2 },
       { wallId: "west", x: -ROOM_HALF + 0.26, z: 0, rotation: Math.PI / 2 },
     ];
-    const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.7, metalness: 0.1 });
-    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
+    const casing = new THREE.MeshStandardMaterial({ color: 0x32170f, roughness: 0.7, metalness: 0.04 });
+    const brass = new THREE.MeshStandardMaterial({ color: 0x9a6a2a, roughness: 0.42, metalness: 0.62 });
 
     ordered.forEach((exhibit, index) => {
       const slot = slots[index];
@@ -1216,12 +1326,12 @@ try {
     canvas.width = 900;
     canvas.height = 520;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#201336";
+    ctx.fillStyle = "#351718";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#d4a84b";
+    ctx.strokeStyle = "#9a6a2a";
     ctx.lineWidth = 16;
     ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
-    ctx.fillStyle = "#d4a84b";
+    ctx.fillStyle = "#9a6a2a";
     ctx.font = "28px monospace";
     ctx.textAlign = "center";
     ctx.fillText("PLAYLIST EXHIBIT", canvas.width / 2, 125);
@@ -1307,24 +1417,27 @@ try {
     addBeam(ROOM_SIZE - 0.65, 0.34, 0, inset, 0.32);
     addBeam(0.34, ROOM_SIZE - 0.65, -inset, 0, 0.32);
     addBeam(0.34, ROOM_SIZE - 0.65, inset, 0, 0.32);
-    [-2.35, 2.35].forEach((z) => addBeam(ROOM_SIZE - 1.0, 0.28, 0, z, 0.26));
+    [-ROOM_SIZE / 6, ROOM_SIZE / 6].forEach((z) => addBeam(ROOM_SIZE - 1.0, 0.32, 0, z, 0.3));
 
-    [-4.7, 0, 4.7].forEach((z) => {
+    [-ROOM_SIZE / 3, 0, ROOM_SIZE / 3].forEach((z) => {
       const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.12, 16), sconceMat);
       canopy.position.set(0, WALL_HEIGHT - 0.34, z);
       roomGroup.add(canopy);
-      const pendant = new THREE.PointLight(0xffcf82, 0.26, 5.0, 2);
-      pendant.position.set(0, WALL_HEIGHT - 0.48, z);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.38, 10), trimMat);
+      stem.position.set(0, WALL_HEIGHT - 0.55, z);
+      roomGroup.add(stem);
+      const pendant = new THREE.PointLight(0xffd6a3, 0.22, 5.6, 2);
+      pendant.position.set(0, WALL_HEIGHT - 0.76, z);
       roomGroup.add(pendant);
     });
   }
 
   function buildWallSconces() {
     // Sconces sit above the picture-hanging zone, not beside the frames.
-    const fixtureHeight = 5.62;
+    const fixtureHeight = WALL_HEIGHT - 0.65;
     const positions = [
-      [-4.8, -ROOM_HALF + 0.22], [4.8, -ROOM_HALF + 0.22],
-      [-4.8, ROOM_HALF - 0.22], [4.8, ROOM_HALF - 0.22],
+      [-ROOM_HALF / 2, -ROOM_HALF + 0.22], [ROOM_HALF / 2, -ROOM_HALF + 0.22],
+      [-ROOM_HALF / 2, ROOM_HALF - 0.22], [ROOM_HALF / 2, ROOM_HALF - 0.22],
     ];
     positions.forEach(([x, z], index) => {
       const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.36, 12), sconceMat);
@@ -1332,7 +1445,7 @@ try {
       fixture.position.set(x, fixtureHeight, z);
       roomGroup.add(fixture);
       if (index < 2) {
-        const glow = new THREE.PointLight(0xffc46f, 0.26, 3.6, 2);
+        const glow = new THREE.PointLight(0xffd6a3, 0.24, 4.2, 2);
         glow.position.set(x, fixtureHeight, z * 0.97);
         roomGroup.add(glow);
       }
@@ -1340,22 +1453,27 @@ try {
   }
 
   function buildFloorDetails(roomId) {
-    // Broad, low-contrast parquet fields read as dark flooring rather than
-    // a bright grid. The room's special galleries receive a quiet runner.
-    [-4.6, -1.55, 1.55, 4.6].forEach((z, row) => {
-      [-4.6, -1.55, 1.55, 4.6].forEach((x, column) => {
-        const horizontal = (row + column) % 2 === 0;
-        const inlay = new THREE.Mesh(new THREE.BoxGeometry(horizontal ? 2.45 : 0.075, 0.014, horizontal ? 0.075 : 2.45), floorInlayMat);
-        inlay.position.set(x, 0.01, z);
-        roomGroup.add(inlay);
-      });
-    });
-    if (["room4", "room5", "room6"].includes(roomId)) {
-      const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 5.8), rugMat);
-      rug.rotation.x = -Math.PI / 2;
-      rug.position.y = 0.017;
-      roomGroup.add(rug);
-    }
+    // A single central carpet gives every room a finished gallery floor while
+    // retaining a broad border of visible midnight flooring around it.
+    const rugWidth = 7.8;
+    const rugDepth = 10.6;
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(rugWidth, rugDepth), rugMat);
+    rug.rotation.x = -Math.PI / 2;
+    rug.position.y = 0.017;
+    roomGroup.add(rug);
+
+    // One muted antique-brass carpet border—an intentional textile detail,
+    // not a floor grid or glowing inlay pattern.
+    const addBorder = (width, depth, x, z) => {
+      const border = new THREE.Mesh(new THREE.BoxGeometry(width, 0.018, depth), rugBorderMat);
+      border.position.set(x, 0.023, z);
+      roomGroup.add(border);
+    };
+    const inset = 0.22;
+    addBorder(rugWidth - inset * 2, 0.055, 0, -rugDepth / 2 + inset);
+    addBorder(rugWidth - inset * 2, 0.055, 0, rugDepth / 2 - inset);
+    addBorder(0.055, rugDepth - inset * 2, -rugWidth / 2 + inset, 0);
+    addBorder(0.055, rugDepth - inset * 2, rugWidth / 2 - inset, 0);
   }
 
   function addGalleryLightPools() {
@@ -1364,7 +1482,7 @@ try {
     // attached to a photograph.
     const pools = [[0, -3.9, 0, -ROOM_HALF + 0.32], [0, 3.9, 0, ROOM_HALF - 0.32], [-3.9, 0, -ROOM_HALF + 0.32, 0], [3.9, 0, ROOM_HALF - 0.32, 0]];
     pools.forEach(([x, z, targetX, targetZ]) => {
-      const light = new THREE.SpotLight(0xffd497, 0.98, 9.4, Math.PI / 7, 0.75, 1.6);
+      const light = new THREE.SpotLight(0xffe0b5, 0.9, 10.2, Math.PI / 7, 0.75, 1.6);
       light.position.set(x, WALL_HEIGHT - 0.48, z);
       light.target.position.set(targetX, 2.7, targetZ);
       roomGroup.add(light);
@@ -1379,7 +1497,7 @@ try {
     const backing = new THREE.Mesh(new THREE.BoxGeometry(DOOR_WIDTH + 0.24, DOOR_HEIGHT + 0.24, 0.12), trimMat);
     backing.position.set(0, (DOOR_HEIGHT + 0.24) / 2, z + 0.02);
     roomGroup.add(backing);
-    const panelMat = new THREE.MeshStandardMaterial({ color: 0x4b2c47, roughness: 0.58, metalness: 0.12 });
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x321d15, roughness: 0.58, metalness: 0.04 });
     panelMat.userData.disposable = true;
     const panel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_WIDTH - 0.12, DOOR_HEIGHT - 0.12, 0.08), panelMat);
     panel.position.set(0, DOOR_HEIGHT / 2, z + 0.09);
@@ -1511,6 +1629,7 @@ try {
 
     const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
     roomGroup.add(floorMesh);
     buildFloorDetails(roomId);
 
@@ -1744,39 +1863,40 @@ try {
     else if (e.key === "Escape" && isWebsiteOverlayOpen()) closeWebsiteExhibit();
   });
   const wainscotMat = new THREE.MeshStandardMaterial({
-    color: 0x21132f,
-    roughness: 0.78,
-    metalness: 0.08,
-  });
-  const upperPanelMat = new THREE.MeshStandardMaterial({
-    color: 0x241638,
-    roughness: 0.9,
+    color: 0x261711,
+    roughness: 0.62,
     metalness: 0.03,
   });
+  const upperPanelMat = new THREE.MeshStandardMaterial({
+    color: 0x472b36,
+    roughness: 0.87,
+    metalness: 0.02,
+  });
   const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x9d7938,
-    roughness: 0.38,
-    metalness: 0.68,
+    color: 0x9a6a2a,
+    roughness: 0.44,
+    metalness: 0.56,
   });
   const ceilingWoodMat = new THREE.MeshStandardMaterial({
-    color: 0x211713,
-    roughness: 0.66,
-    metalness: 0.06,
+    color: 0x2b1912,
+    roughness: 0.6,
+    metalness: 0.02,
   });
-  const floorInlayMat = new THREE.MeshStandardMaterial({
-    color: 0x241820,
-    roughness: 0.78,
-    metalness: 0.04,
+  const rugBorderMat = new THREE.MeshStandardMaterial({
+    color: 0x9a6a2a,
+    roughness: 0.7,
+    metalness: 0.32,
   });
   const rugMat = new THREE.MeshStandardMaterial({
-    color: 0x221329,
-    roughness: 0.94,
+    color: 0x5b2630,
+    map: makeCarpetTexture(),
+    roughness: 0.9,
     metalness: 0,
   });
   const sconceMat = new THREE.MeshStandardMaterial({
-    color: 0x9d7938,
-    emissive: 0x351c0b,
-    emissiveIntensity: 0.32,
+    color: 0x9a6a2a,
+    emissive: 0x321b0d,
+    emissiveIntensity: 0.18,
     roughness: 0.38,
     metalness: 0.68,
   });

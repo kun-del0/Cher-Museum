@@ -4,8 +4,8 @@
 // a coloured rectangle + label. Safe to delete once real photos.src
 // values are filled in below.
 function placeholderPhotoDataUri(label, w, h) {
-  const bg = "#241536";
-  const fg = "#d4a84b";
+  const bg = "#351718";
+  const fg = "#a77a31";
   const fontSize = Math.max(14, Math.round(Math.min(w, h) / 11));
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
