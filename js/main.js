@@ -25,14 +25,16 @@ try {
   sceneRoot.appendChild(renderer.domElement);
 
   // ---- shared midnight-gallery light, supplemented by room spot pools ----
-  const ambient = new THREE.AmbientLight(0x3b2b56, 1.2);
+  // A low cool fill keeps the midnight atmosphere; architectural fixtures
+  // and the few wall-directed spots supply the warmth.
+  const ambient = new THREE.AmbientLight(0x302342, 0.98);
   scene.add(ambient);
 
-  const skyLight = new THREE.HemisphereLight(0x5b496f, 0x120a24, 0.55);
+  const skyLight = new THREE.HemisphereLight(0x483a61, 0x10091d, 0.46);
   scene.add(skyLight);
 
-  const spot = new THREE.SpotLight(0xffe4a8, 3.8, 16, Math.PI / 4, 0.55, 1.25);
-  spot.position.set(0, 4.8, 1);
+  const spot = new THREE.SpotLight(0xffe4a8, 1.95, 19, Math.PI / 4.5, 0.68, 1.4);
+  spot.position.set(0, 6.1, 1);
   spot.target.position.set(0, 0, 0);
   scene.add(spot);
   scene.add(spot.target);
@@ -83,23 +85,23 @@ try {
   // ---- Milestone 3: data-driven room graph ----
   // One room is "live" (built into roomGroup) at a time. Walking into an
   // unlocked door — or pressing Interact near one — swaps the room.
-  const ROOM_SIZE = 12;          // room is ROOM_SIZE x ROOM_SIZE
+  const ROOM_SIZE = 15;          // deliberately generous gallery footprint
   const ROOM_HALF = ROOM_SIZE / 2;
-  const WALL_HEIGHT = 4.8;
+  const WALL_HEIGHT = 6.6;
   const WALL_THICKNESS = 0.3;
   const PLAYER_RADIUS = 0.4;
   const EYE_HEIGHT = 1.6;
   const DOOR_WIDTH = 1.6;   // gap left open in the wall for each door
-  const DOOR_HEIGHT = 2.9;
+  const DOOR_HEIGHT = 3.7;
   const DOOR_EDGE_MARGIN = 1.3; // keeps doors clear of the corners
 
   // ---- Milestone 4: wall-mounted photo frames ----
   const PHOTO_MAX_DIM = 1.7;      // largest side a frame can be, in world units
-  const PHOTO_HEIGHT = 1.75;      // mount height (frame centre) above the floor
+  const PHOTO_HEIGHT = 2.45;      // generous hanging height above broad wainscot
   // Automatic layouts use three separated rows on each wall. This expands
   // usable hanging space without ever putting a frame in a doorway: each
   // row is packed only into that wall's door-free horizontal segments.
-  const PHOTO_ROW_CENTERS = [0.75, 1.8, 2.85];
+  const PHOTO_ROW_CENTERS = [2.2, 3.55, 4.85];
   const PHOTO_WALL_MARGIN = 0.55; // keeps frames clear of corners / door frames
   const PHOTO_INTERACT_DISTANCE = 1.9;
   const FRAME_BORDER_PAD = 0.12;  // physical brass border added around every frame's image plane
@@ -278,9 +280,9 @@ try {
       }
       roomGroup.add(mesh);
 
-      // Lightweight architectural overlay: a darker lower wall, recessed
-      // upper section, brass chair rail, baseboard, crown, and end stiles.
-      // Each piece follows the already door-safe wall segment above.
+      // Each door-safe segment receives a few large architectural forms:
+      // deep dado, a single recessed bay, substantial end pilasters and
+      // broad crown. This avoids a wallpaper of thin decorative lines.
       const frontOffset = WALL_THICKNESS / 2 + 0.025;
       const addDetail = (detailLength, height, y, depth, material, tangentCenter = center) => {
         let detail;
@@ -293,14 +295,16 @@ try {
         }
         roomGroup.add(detail);
       };
-      addDetail(length, 1.14, 0.57, 0.045, wainscotMat);
-      addDetail(length - 0.18, WALL_HEIGHT - 1.56, (WALL_HEIGHT + 1.34) / 2, 0.03, upperPanelMat);
-      addDetail(length + 0.04, 0.13, 0.1, 0.1, trimMat); // baseboard
-      addDetail(length + 0.03, 0.09, 1.18, 0.1, trimMat); // chair rail
-      addDetail(length + 0.06, 0.16, WALL_HEIGHT - 0.12, 0.13, trimMat); // crown
+      addDetail(length, 1.42, 0.71, 0.09, wainscotMat);
+      addDetail(length - 0.48, WALL_HEIGHT - 2.18, (WALL_HEIGHT + 1.42) / 2, 0.055, upperPanelMat);
+      addDetail(length + 0.06, 0.18, 0.11, 0.16, ceilingWoodMat); // plinth
+      addDetail(length - 0.16, 0.16, 1.47, 0.15, ceilingWoodMat); // dado cap
+      addDetail(length + 0.08, 0.34, WALL_HEIGHT - 0.17, 0.24, ceilingWoodMat); // crown
       if (length > 0.5) {
-        addDetail(0.09, WALL_HEIGHT - 1.4, (WALL_HEIGHT + 1.22) / 2, 0.1, trimMat, a + 0.12);
-        addDetail(0.09, WALL_HEIGHT - 1.4, (WALL_HEIGHT + 1.22) / 2, 0.1, trimMat, b - 0.12);
+        // Keep the bay edge well outside the photo packer's 0.55-unit wall
+        // margin, so it reads as architecture around—not through—an exhibit.
+        addDetail(0.14, WALL_HEIGHT - 1.56, (WALL_HEIGHT + 1.42) / 2, 0.1, ceilingWoodMat, a + 0.1);
+        addDetail(0.14, WALL_HEIGHT - 1.56, (WALL_HEIGHT + 1.42) / 2, 0.1, ceilingWoodMat, b - 0.1);
       }
     });
   }
@@ -353,6 +357,15 @@ try {
   function buildDoorVisual(wallId, door, offset, connectionId, locked) {
     const def = WALL_DEFS[wallId];
     const anchor = anchorFor(wallId, offset);
+
+    // A deep dark-wood surround makes each passage a substantial reveal;
+    // its dimensions do not change the existing collision opening.
+    const surroundGeo = def.tangentAxis === "x"
+      ? new THREE.BoxGeometry(DOOR_WIDTH + 0.54, DOOR_HEIGHT + 0.52, WALL_THICKNESS * 1.38)
+      : new THREE.BoxGeometry(WALL_THICKNESS * 1.38, DOOR_HEIGHT + 0.52, DOOR_WIDTH + 0.54);
+    const surround = new THREE.Mesh(surroundGeo, ceilingWoodMat);
+    surround.position.set(anchor.x, DOOR_HEIGHT / 2, anchor.z);
+    roomGroup.add(surround);
 
     const frameGeo =
       def.tangentAxis === "x"
@@ -922,31 +935,34 @@ try {
     // separately inspectable volume rather than a gallery tile.
     (byType.book || []).forEach((item, index) => {
       const z = -2.5 + index * 2.45;
-      addMesh(new THREE.BoxGeometry(0.42, 2.25, 1.55), wood, -5.18, 1.15, z);
-      addMesh(new THREE.BoxGeometry(0.08, 2.45, 1.73), brass, -5.42, 1.25, z);
-      addMesh(new THREE.BoxGeometry(0.18, 1.2, 0.95), index % 2 ? rose : paper, -4.92, 1.65, z);
-      addArchiveLabel(item.title, "Reading archive", -4.93, 0.78, z, Math.PI / 2, 1.05);
-      register(item, -4.7, z);
+      const x = -ROOM_HALF + 1.3;
+      addMesh(new THREE.BoxGeometry(0.42, 2.25, 1.55), wood, x, 1.15, z);
+      addMesh(new THREE.BoxGeometry(0.08, 2.45, 1.73), brass, x - 0.24, 1.25, z);
+      addMesh(new THREE.BoxGeometry(0.18, 1.2, 0.95), index % 2 ? rose : paper, x + 0.26, 1.65, z);
+      addArchiveLabel(item.title, "Reading archive", x + 0.25, 0.78, z, Math.PI / 2, 1.05);
+      register(item, x + 0.48, z);
     });
 
     // North wall: two distinct game cabinets with small warm-lit screens.
     (byType.game || []).forEach((item, index) => {
       const x = index ? 2.65 : -2.65;
-      addMesh(new THREE.BoxGeometry(1.45, 1.18, 0.56), wood, x, 0.59, -5.32);
-      addMesh(new THREE.BoxGeometry(1.18, 0.72, 0.05), gameBlue, x, 1.13, -5.64);
-      addMesh(new THREE.BoxGeometry(1.55, 0.08, 0.66), brass, x, 0.06, -5.32);
-      addArchiveLabel(item.title, "Game cabinet", x, 1.78, -5.61, 0, 1.32);
-      register(item, x, -4.75);
+      const z = -ROOM_HALF + 1.3;
+      addMesh(new THREE.BoxGeometry(1.45, 1.18, 0.56), wood, x, 0.59, z);
+      addMesh(new THREE.BoxGeometry(1.18, 0.72, 0.05), gameBlue, x, 1.13, z - 0.32);
+      addMesh(new THREE.BoxGeometry(1.55, 0.08, 0.66), brass, x, 0.06, z);
+      addArchiveLabel(item.title, "Game cabinet", x, 1.78, z - 0.29, 0, 1.32);
+      register(item, x, z + 0.57);
     });
 
     // East wall: a character-display plinth for each configured One Piece entry.
     (byType["one-piece"] || []).forEach((item, index) => {
       const z = -2.5 + index * 2.45;
-      addMesh(new THREE.CylinderGeometry(0.54, 0.7, 0.72, 16), wood, 5.18, 0.36, z);
-      addMesh(new THREE.CylinderGeometry(0.38, 0.38, 0.78, 12), index === 1 ? paper : brass, 5.18, 1.1, z);
-      addMesh(new THREE.SphereGeometry(0.3, 14, 10), index === 2 ? leaf : rose, 5.18, 1.68, z);
-      addArchiveLabel(item.title, "One Piece display", 4.88, 0.55, z, -Math.PI / 2, 1.08);
-      register(item, 4.7, z);
+      const x = ROOM_HALF - 1.3;
+      addMesh(new THREE.CylinderGeometry(0.54, 0.7, 0.72, 16), wood, x, 0.36, z);
+      addMesh(new THREE.CylinderGeometry(0.38, 0.38, 0.78, 12), index === 1 ? paper : brass, x, 1.1, z);
+      addMesh(new THREE.SphereGeometry(0.3, 14, 10), index === 2 ? leaf : rose, x, 1.68, z);
+      addArchiveLabel(item.title, "One Piece display", x - 0.3, 0.55, z, -Math.PI / 2, 1.08);
+      register(item, x - 0.48, z);
     });
 
     // Centre: low flower pedestals leave generous clear routes to every door.
@@ -1007,10 +1023,10 @@ try {
     // An empty configuration still reads as an archive rather than a bare room.
     const displays = videos.length ? videos : [{ title: "Video Archive", note: "Add video entries in js/config.js." }];
     const slots = [
-      { x: 0, z: -5.74, rotation: 0, labelX: 0, labelZ: -5.6 },
-      { x: 5.74, z: 2.55, rotation: -Math.PI / 2, labelX: 5.59, labelZ: 2.55 },
-      { x: -2.7, z: 5.74, rotation: Math.PI, labelX: -2.7, labelZ: 5.59 },
-      { x: -5.74, z: 2.55, rotation: Math.PI / 2, labelX: -5.59, labelZ: 2.55 },
+      { x: 0, z: -ROOM_HALF + 0.26, rotation: 0, labelX: 0, labelZ: -ROOM_HALF + 0.42 },
+      { x: ROOM_HALF - 0.26, z: 3.2, rotation: -Math.PI / 2, labelX: ROOM_HALF - 0.42, labelZ: 3.2 },
+      { x: -3.2, z: ROOM_HALF - 0.26, rotation: Math.PI, labelX: -3.2, labelZ: ROOM_HALF - 0.42 },
+      { x: -ROOM_HALF + 0.26, z: 3.2, rotation: Math.PI / 2, labelX: -ROOM_HALF + 0.42, labelZ: 3.2 },
     ];
     const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
     const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.68, metalness: 0.1 });
@@ -1134,10 +1150,10 @@ try {
     const ordered = [primary, ...remaining].filter(Boolean);
     const slots = [
       // The primary display sits south, directly opposite Room 6's north-side entry.
-      { wallId: "south", x: 0, z: 5.74, rotation: Math.PI },
-      { wallId: "north", x: 0, z: -5.74, rotation: 0 },
-      { wallId: "east", x: 5.74, z: 0, rotation: -Math.PI / 2 },
-      { wallId: "west", x: -5.74, z: 0, rotation: Math.PI / 2 },
+      { wallId: "south", x: 0, z: ROOM_HALF - 0.26, rotation: Math.PI },
+      { wallId: "north", x: 3.4, z: -ROOM_HALF + 0.26, rotation: 0, width: 4.8 },
+      { wallId: "east", x: ROOM_HALF - 0.26, z: 0, rotation: -Math.PI / 2 },
+      { wallId: "west", x: -ROOM_HALF + 0.26, z: 0, rotation: Math.PI / 2 },
     ];
     const casing = new THREE.MeshStandardMaterial({ color: 0x301b47, roughness: 0.7, metalness: 0.1 });
     const brass = new THREE.MeshStandardMaterial({ color: 0xd4a84b, roughness: 0.42, metalness: 0.62 });
@@ -1146,22 +1162,23 @@ try {
       const slot = slots[index];
       const normalX = Math.sin(slot.rotation);
       const normalZ = Math.cos(slot.rotation);
-      const backing = new THREE.Mesh(new THREE.BoxGeometry(9.45, 2.72, 0.16), casing);
+      const displayWidth = slot.width || 10.6;
+      const backing = new THREE.Mesh(new THREE.BoxGeometry(displayWidth, 2.72, 0.16), casing);
       backing.position.set(slot.x, 2.0, slot.z);
       backing.rotation.y = slot.rotation;
       roomGroup.add(backing);
       const texture = makeWebsiteScreenTexture(exhibit);
       const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
       material.userData.disposable = true;
-      const screen = new THREE.Mesh(new THREE.PlaneGeometry(9.1, 2.38), material);
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(displayWidth - 0.35, 2.38), material);
       screen.position.set(slot.x + normalX * 0.11, 2.0, slot.z + normalZ * 0.11);
       screen.rotation.y = slot.rotation;
       roomGroup.add(screen);
       const frameGroup = new THREE.Group();
       frameGroup.position.set(slot.x, 2.0, slot.z);
       frameGroup.rotation.y = slot.rotation;
-      [[new THREE.BoxGeometry(9.35, 0.1, 0.1), 0, 1.32], [new THREE.BoxGeometry(9.35, 0.1, 0.1), 0, -1.32],
-        [new THREE.BoxGeometry(0.1, 2.74, 0.1), 4.625, 0], [new THREE.BoxGeometry(0.1, 2.74, 0.1), -4.625, 0]]
+      [[new THREE.BoxGeometry(displayWidth - 0.1, 0.1, 0.1), 0, 1.32], [new THREE.BoxGeometry(displayWidth - 0.1, 0.1, 0.1), 0, -1.32],
+        [new THREE.BoxGeometry(0.1, 2.74, 0.1), displayWidth / 2 - 0.1, 0], [new THREE.BoxGeometry(0.1, 2.74, 0.1), -displayWidth / 2 + 0.1, 0]]
         .forEach(([geometry, x, y]) => {
           const rail = new THREE.Mesh(geometry, brass);
           rail.position.set(x, y, 0.17);
@@ -1173,7 +1190,7 @@ try {
 
     // This is part of the focal wall, not a fifth external exhibit.
     const finale = makeFinalePlaque(CONFIG.finale && CONFIG.finale.title, CONFIG.finale && CONFIG.finale.message);
-    finale.position.set(0, 0.52, 5.57);
+    finale.position.set(0, 0.52, ROOM_HALF - 0.43);
     finale.rotation.y = Math.PI;
     roomGroup.add(finale);
   }
@@ -1262,12 +1279,79 @@ try {
   playlistOverlayCloseEl.addEventListener("click", closePlaylistBoard);
   playlistOverlayBackdropEl.addEventListener("click", closePlaylistBoard);
 
+  function buildCeilingArchitecture() {
+    const y = WALL_HEIGHT - 0.18;
+    const addBeam = (width, depth, x, z, height = 0.22) => {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), ceilingWoodMat);
+      beam.position.set(x, y, z);
+      roomGroup.add(beam);
+    };
+    const inset = ROOM_HALF - 0.5;
+    // One strong perimeter and two cross beams form three generous coffers.
+    addBeam(ROOM_SIZE - 0.65, 0.34, 0, -inset, 0.32);
+    addBeam(ROOM_SIZE - 0.65, 0.34, 0, inset, 0.32);
+    addBeam(0.34, ROOM_SIZE - 0.65, -inset, 0, 0.32);
+    addBeam(0.34, ROOM_SIZE - 0.65, inset, 0, 0.32);
+    [-2.35, 2.35].forEach((z) => addBeam(ROOM_SIZE - 1.0, 0.28, 0, z, 0.26));
+
+    [-4.7, 0, 4.7].forEach((z) => {
+      const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.12, 16), sconceMat);
+      canopy.position.set(0, WALL_HEIGHT - 0.34, z);
+      roomGroup.add(canopy);
+      const pendant = new THREE.PointLight(0xffcf82, 0.26, 5.0, 2);
+      pendant.position.set(0, WALL_HEIGHT - 0.48, z);
+      roomGroup.add(pendant);
+    });
+  }
+
+  function buildWallSconces() {
+    // Sconces sit above the picture-hanging zone, not beside the frames.
+    const fixtureHeight = 5.62;
+    const positions = [
+      [-4.8, -ROOM_HALF + 0.22], [4.8, -ROOM_HALF + 0.22],
+      [-4.8, ROOM_HALF - 0.22], [4.8, ROOM_HALF - 0.22],
+    ];
+    positions.forEach(([x, z], index) => {
+      const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.36, 12), sconceMat);
+      fixture.rotation.z = Math.PI / 2;
+      fixture.position.set(x, fixtureHeight, z);
+      roomGroup.add(fixture);
+      if (index < 2) {
+        const glow = new THREE.PointLight(0xffc46f, 0.26, 3.6, 2);
+        glow.position.set(x, fixtureHeight, z * 0.97);
+        roomGroup.add(glow);
+      }
+    });
+  }
+
+  function buildFloorDetails(roomId) {
+    // Broad, low-contrast parquet fields read as dark flooring rather than
+    // a bright grid. The room's special galleries receive a quiet runner.
+    [-4.6, -1.55, 1.55, 4.6].forEach((z, row) => {
+      [-4.6, -1.55, 1.55, 4.6].forEach((x, column) => {
+        const horizontal = (row + column) % 2 === 0;
+        const inlay = new THREE.Mesh(new THREE.BoxGeometry(horizontal ? 2.45 : 0.075, 0.014, horizontal ? 0.075 : 2.45), floorInlayMat);
+        inlay.position.set(x, 0.01, z);
+        roomGroup.add(inlay);
+      });
+    });
+    if (["room4", "room5", "room6"].includes(roomId)) {
+      const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 5.8), rugMat);
+      rug.rotation.x = -Math.PI / 2;
+      rug.position.y = 0.017;
+      roomGroup.add(rug);
+    }
+  }
+
   function addGalleryLightPools() {
-    const pools = [[-3.4, -2.8], [3.4, -2.8], [-3.4, 2.8], [3.4, 2.8]];
-    pools.forEach(([x, z]) => {
-      const light = new THREE.SpotLight(0xffd99a, 1.45, 9.5, Math.PI / 4.2, 0.72, 1.5);
-      light.position.set(x, WALL_HEIGHT - 0.35, z);
-      light.target.position.set(x * 0.74, 0, z * 0.74);
+    // Four focused, wall-directed accents. Their origins are set forward
+    // from the wall and high above the hanging zone, so no fixture appears
+    // attached to a photograph.
+    const pools = [[0, -3.9, 0, -ROOM_HALF + 0.32], [0, 3.9, 0, ROOM_HALF - 0.32], [-3.9, 0, -ROOM_HALF + 0.32, 0], [3.9, 0, ROOM_HALF - 0.32, 0]];
+    pools.forEach(([x, z, targetX, targetZ]) => {
+      const light = new THREE.SpotLight(0xffd497, 0.98, 9.4, Math.PI / 7, 0.75, 1.6);
+      light.position.set(x, WALL_HEIGHT - 0.48, z);
+      light.target.position.set(targetX, 2.7, targetZ);
       roomGroup.add(light);
       roomGroup.add(light.target);
     });
@@ -1413,11 +1497,14 @@ try {
     const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
     roomGroup.add(floorMesh);
+    buildFloorDetails(roomId);
 
     const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), ceilingMat);
     ceilingMesh.rotation.x = Math.PI / 2;
     ceilingMesh.position.y = WALL_HEIGHT;
     roomGroup.add(ceilingMesh);
+    buildCeilingArchitecture();
+    buildWallSconces();
     addGalleryLightPools();
 
     const doors = roomCfg.doors || [];
@@ -1653,6 +1740,28 @@ try {
   });
   const trimMat = new THREE.MeshStandardMaterial({
     color: 0x9d7938,
+    roughness: 0.38,
+    metalness: 0.68,
+  });
+  const ceilingWoodMat = new THREE.MeshStandardMaterial({
+    color: 0x211713,
+    roughness: 0.66,
+    metalness: 0.06,
+  });
+  const floorInlayMat = new THREE.MeshStandardMaterial({
+    color: 0x241820,
+    roughness: 0.78,
+    metalness: 0.04,
+  });
+  const rugMat = new THREE.MeshStandardMaterial({
+    color: 0x221329,
+    roughness: 0.94,
+    metalness: 0,
+  });
+  const sconceMat = new THREE.MeshStandardMaterial({
+    color: 0x9d7938,
+    emissive: 0x351c0b,
+    emissiveIntensity: 0.32,
     roughness: 0.38,
     metalness: 0.68,
   });
