@@ -27,13 +27,13 @@ try {
   // ---- shared midnight-gallery light, supplemented by room spot pools ----
   // A low cool fill keeps the midnight atmosphere; architectural fixtures
   // and the few wall-directed spots supply the warmth.
-  const ambient = new THREE.AmbientLight(0x302342, 0.98);
+  const ambient = new THREE.AmbientLight(0x302342, 1.2);
   scene.add(ambient);
 
-  const skyLight = new THREE.HemisphereLight(0x483a61, 0x10091d, 0.46);
+  const skyLight = new THREE.HemisphereLight(0x483a61, 0x10091d, 0.55);
   scene.add(skyLight);
 
-  const spot = new THREE.SpotLight(0xffe4a8, 1.95, 19, Math.PI / 4.5, 0.68, 1.4);
+  const spot = new THREE.SpotLight(0xffe4a8, 3.4, 20, Math.PI / 4.5, 0.68, 1.4);
   spot.position.set(0, 6.1, 1);
   spot.target.position.set(0, 0, 0);
   scene.add(spot);
@@ -101,9 +101,12 @@ try {
   // Automatic layouts use three separated rows on each wall. This expands
   // usable hanging space without ever putting a frame in a doorway: each
   // row is packed only into that wall's door-free horizontal segments.
-  const PHOTO_ROW_CENTERS = [2.2, 3.55, 4.85];
+  const PHOTO_ROW_LIMIT = 3;
   const PHOTO_WALL_MARGIN = 0.55; // keeps frames clear of corners / door frames
-  const PHOTO_INTERACT_DISTANCE = 1.9;
+  // Measured to the nearest point on a frame's real 3D surface. This allows
+  // naturally high-hung art to be inspected from normal eye height without
+  // making artwork reachable from across the gallery.
+  const PHOTO_INTERACT_DISTANCE = 4.1;
   const FRAME_BORDER_PAD = 0.12;  // physical brass border added around every frame's image plane
   const PHOTO_MIN_SPACING = 0.35; // minimum gap between two neighboring frames' borders
   const PHOTO_LOAD_TIMEOUT_MS = 6000; // don't let one slow image stall the whole room's layout
@@ -544,11 +547,20 @@ try {
   // uses the same rules, so a larger collection simply continues into
   // smaller, still-readable frames rather than assuming a fixed count.
   function photoMaxDimensionForCount(count) {
-    if (count <= 12) return 1.0;
-    if (count <= 24) return 0.85;
-    if (count <= 40) return 0.7;
-    if (count <= 60) return 0.58;
-    return 0.48;
+    if (count <= 3) return 1.7;
+    if (count <= 8) return 1.5;
+    if (count <= 12) return 1.35;
+    if (count <= 18) return 1.15;
+    if (count <= 28) return 0.95;
+    if (count <= 40) return 0.78;
+    if (count <= 60) return 0.62;
+    return 0.5;
+  }
+
+  function photoRowCentersForCount(rowCount) {
+    if (rowCount <= 1) return [3.7];
+    if (rowCount === 2) return [2.65, 4.75];
+    return [2.2, 3.65, 5.05];
   }
 
   // If a frame is wider than the biggest space actually available on
@@ -615,29 +627,21 @@ try {
 
       remaining.splice(0, take.length);
 
-      // Center the whole placed group in the segment, then lay items
-      // out edge-to-edge with PHOTO_MIN_SPACING between them, using
-      // each item's *real* footprint rather than an equal-fraction guess.
-      let cursor = usableStart + (usableLen - used) / 2;
+      // Use the whole usable wall span for a small group. The minimum gap
+      // remains protected, while any spare width becomes graceful breathing
+      // room between frames rather than a tight cluster at the centre.
+      const spare = usableLen - used;
+      const gap = take.length > 1
+        ? PHOTO_MIN_SPACING + spare / (take.length - 1)
+        : 0;
+      let cursor = take.length === 1 ? usableStart + spare / 2 : usableStart;
       take.forEach((item) => {
         const fw = item.w + FRAME_BORDER_PAD;
         placed.push({ item, offset: cursor + fw / 2 });
-        cursor += fw + PHOTO_MIN_SPACING;
+        cursor += fw + gap;
       });
     });
     return { placed, leftover: remaining };
-  }
-
-  // Packs one horizontal display row. Keeping the rows independent makes
-  // mixed portrait/landscape images reflow predictably while their real
-  // widths still control spacing. `y` is carried through to the mesh so
-  // frames on the same wall cannot overlap vertically.
-  function packSegmentsInRow(segments, items, y) {
-    const { placed, leftover } = packSegments(segments, items);
-    return {
-      placed: placed.map((p) => ({ ...p, y })),
-      leftover,
-    };
   }
 
   // Checks a manual `photo.position = { wall, offset }` override against
@@ -730,11 +734,10 @@ try {
   //   1. Preload every photo's aspect ratio and compute its frame size.
   //   2. Split off any photo with a valid `photo.position = { wall, offset }`
   //      manual override; invalid overrides fall back to automatic layout.
-  //   3. Round-robin the rest across the four walls (same distribution
-  //      as before), then pack each wall's door-free segments with
-  //      packSegments — which guarantees real footprints, minimum
-  //      spacing, and containment within PHOTO_WALL_MARGIN of every
-  //      door/corner.
+  //   3. Round-robin the rest across the four walls, then fill each wall's
+  //      available horizontal space before opening a higher display row.
+  //      packSegments guarantees real footprints, minimum spacing, and
+  //      containment within PHOTO_WALL_MARGIN of every door/corner.
   //   4. Anything that still doesn't fit gets a second pass across
   //      whichever walls have leftover room; anything that *still*
   //      doesn't fit is skipped with a console warning rather than
@@ -780,18 +783,21 @@ try {
       autoQueue.push(item);
     });
 
-    // Spread photos through all four walls and three display rows from the
-    // outset. The second pass below still borrows free space from another
-    // wall when one wall has more doors than the others.
+    // Spread photos through all four walls, but keep a single queue per wall.
+    // Rows are opened only after the preceding row has used its horizontal
+    // room; this makes broad wall stretches read as a gallery hang, not a
+    // vertical stack.
     const perWall = {
-      north: [[], [], []], east: [[], [], []], south: [[], [], []], west: [[], [], []],
+      north: [], east: [], south: [], west: [],
     };
     autoQueue.forEach((item, i) => {
-      const slot = i % (WALL_ORDER.length * PHOTO_ROW_CENTERS.length);
-      perWall[WALL_ORDER[slot % WALL_ORDER.length]][Math.floor(slot / WALL_ORDER.length)].push(item);
+      perWall[WALL_ORDER[i % WALL_ORDER.length]].push(item);
     });
 
-    const placedRecords = []; // { wallId, offset, y, item }
+    // Rows are kept separately until each wall knows how many it actually
+    // needs; that lets a one-row hang sit at a generous gallery height and
+    // lets denser hangs use more of the wall vertically.
+    const rowsByWall = { north: [], east: [], south: [], west: [] };
     let overflow = [];
 
     WALL_ORDER.forEach((wallId) => {
@@ -806,18 +812,15 @@ try {
         (best, seg) => Math.max(best, seg[1] - seg[0] - 2 * PHOTO_WALL_MARGIN),
         0
       );
-      perWall[wallId].forEach((rowItems, rowIndex) => {
-        const sizedRowItems = rowItems.map((item) => shrinkItemToFit(item, maxUsableLen));
-        const { placed, leftover } = packSegmentsInRow(
-          segments,
-          sizedRowItems,
-          PHOTO_ROW_CENTERS[rowIndex]
-        );
-        placed.forEach((p) => placedRecords.push({ wallId, offset: p.offset, y: p.y, item: p.item }));
-        overflow.push(...leftover);
-      });
-
-      manualOnWall.forEach((m) => placedRecords.push({ wallId, offset: m.offset, y: PHOTO_HEIGHT, item: m }));
+      let remainingOnWall = perWall[wallId];
+      while (remainingOnWall.length > 0 && rowsByWall[wallId].length < PHOTO_ROW_LIMIT) {
+        const sizedRowItems = remainingOnWall.map((item) => shrinkItemToFit(item, maxUsableLen));
+        const { placed, leftover } = packSegments(segments, sizedRowItems);
+        if (placed.length === 0) break;
+        rowsByWall[wallId].push(placed);
+        remainingOnWall = leftover;
+      }
+      overflow.push(...remainingOnWall);
     });
 
     // Second pass: give any photo that didn't fit on its assigned wall
@@ -830,22 +833,23 @@ try {
       WALL_ORDER.forEach((wallId) => {
         if (toPlace.length === 0) return;
         let segments = computeFreeWallSegments(wallId);
-        placedRecords
-          .filter((r) => r.wallId === wallId)
-          .forEach((r) => {
-            segments = subtractSpanFromSegments(segments, r.offset, r.item.w);
-          });
+        // Automatic rows are vertically separate, so items already placed
+        // on another row do not consume this row's horizontal wall space.
+        // Manual placements remain reserved above.
+        manual
+          .filter((m) => m.wallId === wallId)
+          .forEach((m) => { segments = subtractSpanFromSegments(segments, m.offset, m.w); });
         const maxUsableLen = segments.reduce(
           (best, seg) => Math.max(best, seg[1] - seg[0] - 2 * PHOTO_WALL_MARGIN),
           0
         );
-        PHOTO_ROW_CENTERS.forEach((y) => {
-          if (toPlace.length === 0) return;
+        while (toPlace.length > 0 && rowsByWall[wallId].length < PHOTO_ROW_LIMIT) {
           const sized = toPlace.map((item) => shrinkItemToFit(item, maxUsableLen));
-          const { placed, leftover } = packSegmentsInRow(segments, sized, y);
-          placed.forEach((p) => placedRecords.push({ wallId, offset: p.offset, y: p.y, item: p.item }));
+          const { placed, leftover } = packSegments(segments, sized);
+          if (placed.length === 0) break;
+          rowsByWall[wallId].push(placed);
           toPlace = leftover;
-        });
+        }
       });
       stillOverflow.push(...toPlace);
       if (stillOverflow.length > 0) {
@@ -856,6 +860,17 @@ try {
         );
       }
     }
+
+    const placedRecords = []; // { wallId, offset, y, item }
+    WALL_ORDER.forEach((wallId) => {
+      const rowCenters = photoRowCentersForCount(rowsByWall[wallId].length);
+      rowsByWall[wallId].forEach((row, rowIndex) => {
+        row.forEach((p) => placedRecords.push({ wallId, offset: p.offset, y: rowCenters[rowIndex], item: p.item }));
+      });
+      manual
+        .filter((m) => m.wallId === wallId)
+        .forEach((m) => placedRecords.push({ wallId, offset: m.offset, y: PHOTO_HEIGHT, item: m }));
+    });
 
     if (generation !== roomGeneration) return []; // room changed while this ran
 
@@ -1774,6 +1789,22 @@ try {
     openDoorOverlay(record);
   }
 
+  function photoDistanceToPlayer(record) {
+    // Measure against the closest point on the actual rendered image plane,
+    // not its wall anchor. Height, frame dimensions, and wall orientation all
+    // participate, making the nearest reachable image win consistently.
+    const position = record.photoMesh.getWorldPosition(new THREE.Vector3());
+    const tangentDelta = record.wallId === "north" || record.wallId === "south"
+      ? camera.position.x - position.x
+      : camera.position.z - position.z;
+    const normalDelta = record.wallId === "north" || record.wallId === "south"
+      ? camera.position.z - position.z
+      : camera.position.x - position.x;
+    const horizontalGap = Math.max(0, Math.abs(tangentDelta) - record.frameW / 2);
+    const verticalGap = Math.max(0, Math.abs(camera.position.y - position.y) - record.frameH / 2);
+    return Math.hypot(horizontalGap, verticalGap, normalDelta);
+  }
+
   function updateInteractPrompt() {
     if (!doorPromptEl) return;
     if (isAnyOverlayOpen()) {
@@ -1800,7 +1831,7 @@ try {
     let closestPhoto = null;
     let closestPhotoDist = PHOTO_INTERACT_DISTANCE;
     photoRecords.forEach((r) => {
-      const dist = Math.hypot(camera.position.x - r.anchor.x, camera.position.z - r.anchor.z);
+      const dist = photoDistanceToPlayer(r);
       if (dist < closestPhotoDist) {
         closestPhotoDist = dist;
         closestPhoto = r;
